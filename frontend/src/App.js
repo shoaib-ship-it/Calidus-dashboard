@@ -1,53 +1,66 @@
-import { useEffect } from "react";
+import { useState, createContext, useContext } from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import { Toaster } from "@/components/ui/sonner";
+import { DashboardShell } from "@/components/layout/DashboardShell";
+import { AdminDashboard } from "@/pages/AdminDashboard";
+import { SupplierDashboard } from "@/pages/SupplierDashboard";
+import { BuyerDashboard } from "@/pages/BuyerDashboard";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+// Role Context
+const RoleContext = createContext();
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
+export const useRole = () => {
+  const context = useContext(RoleContext);
+  if (!context) {
+    throw new Error("useRole must be used within RoleProvider");
+  }
+  return context;
+};
 
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
+// Navigation Context for active section
+const NavigationContext = createContext();
 
-  return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
+export const useNavigation = () => {
+  const context = useContext(NavigationContext);
+  if (!context) {
+    throw new Error("useNavigation must be used within NavigationProvider");
+  }
+  return context;
 };
 
 function App() {
+  const [currentRole, setCurrentRole] = useState("admin");
+  const [activeSection, setActiveSection] = useState("overview");
+
+  const handleRoleChange = (role) => {
+    setCurrentRole(role);
+    setActiveSection("overview");
+  };
+
+  const renderDashboard = () => {
+    switch (currentRole) {
+      case "admin":
+        return <AdminDashboard />;
+      case "supplier":
+        return <SupplierDashboard />;
+      case "buyer":
+        return <BuyerDashboard />;
+      default:
+        return <AdminDashboard />;
+    }
+  };
+
   return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </div>
+    <RoleContext.Provider value={{ currentRole, setCurrentRole: handleRoleChange }}>
+      <NavigationContext.Provider value={{ activeSection, setActiveSection }}>
+        <div className="min-h-screen bg-background tactical-grid noise-overlay">
+          <DashboardShell>
+            {renderDashboard()}
+          </DashboardShell>
+          <Toaster position="top-right" richColors />
+        </div>
+      </NavigationContext.Provider>
+    </RoleContext.Provider>
   );
 }
 
