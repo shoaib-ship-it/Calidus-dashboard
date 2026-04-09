@@ -1,83 +1,158 @@
-# B2B Defense Supplier Marketplace - Dashboard UI Prototype
+# B2B Defense Supplier Marketplace - Product Requirements Document
 
 ## Original Problem Statement
-Build a Dashboard UI Prototype for a B2B Defense Supplier Marketplace with three role-based dashboards (Admin, Supplier, Buyer) accessible via role selector dropdown. Dark defense-themed design, enterprise-grade SaaS dashboard aesthetics. UI-only prototype with mock data and simulated interactions.
+Build a fully interactive, frontend-only prototype for a B2B Defense Supplier Marketplace dashboard with role-based views (Admin, Supplier, Buyer). The application must feature realistic mock data, a dark defense-themed UI, and state-managed interactive elements for a demo-ready prototype.
 
-## Architecture
-- **Frontend**: React 19 + Tailwind CSS + Shadcn UI Components
-- **Charts**: Recharts for analytics visualizations
-- **State Management**: React useState for mock data interactions
-- **Styling**: Dark defense-themed color palette with tactical HUD aesthetics
-- **Typography**: Barlow Condensed (headings), Inter (body), JetBrains Mono (data)
+## Core Requirements
+- **NO BACKEND** - All interactions handled via React state
+- Role-based dashboards: Admin, Supplier, Buyer
+- Dark defense-themed UI using Tailwind CSS + Shadcn UI
+- All buttons must trigger modals, sheets, or status changes (no dead clicks)
 
-## User Personas
-1. **Platform Administrator**: Full platform control - manages suppliers, products, buyers, ratings, categories
-2. **Supplier (Orion Defense Systems)**: Manages company profile, products, enquiries, reviews
-3. **Buyer (James Mitchell)**: Tracks enquiries, submits ratings, manages profile
+---
 
-## Core Requirements (Static)
-- [x] Role-based dashboard with dropdown selector
-- [x] Admin Dashboard with 7 sections
-- [x] Supplier Dashboard with 5 sections
-- [x] Buyer Dashboard with 4 sections
-- [x] Dark defense-themed UI
-- [x] Interactive data tables with search & pagination
-- [x] Status badges (Active/Pending/Suspended/Approved/Rejected)
-- [x] Action buttons with confirmation dialogs
-- [x] Toast notifications for actions
-- [x] Analytics charts (Bar, Line, Area)
-- [x] Category hierarchy display
-- [x] Rating stars component
+## What's Been Implemented
 
-## What's Been Implemented (Jan 2026)
-### Admin Dashboard
-- Overview with stats cards and trend charts
-- Supplier Management (approve/reject/suspend/delete)
-- Product Management (approve/reject/edit/delete)
-- Ratings Moderation (approve/reject/remove)
-- Category Management (add/edit/delete categories with subcategories)
-- Buyer Management (view/suspend/delete)
-- Platform Insights (analytics charts)
+### Phase 1: Core Dashboard Structure ✅
+- Global DashboardShell with role selector
+- Navigation sidebar with role-specific sections
+- Notifications and messaging UI
+- Dark defense theme with Barlow Condensed typography
 
-### Supplier Dashboard
-- Overview with profile views, enquiries, products, rating
-- Company Profile (view/edit, certifications)
-- Product Management (add/edit/delete products)
-- Enquiries (view/reply to buyer enquiries)
-- Ratings & Reviews (view and respond)
+### Phase 2: Admin Dashboard ✅
+- **Overview**: Stats cards, pending approvals, charts (Category Demand Trends, Top Rated Suppliers)
+- **Supplier Management**: Table with filters (Status, Doc Status), View/Approve/Reject/Suspend/Delete actions
+- **Product Management**: 
+  - Table with Supplier Name column
+  - 3 filter dropdowns (Supplier, Category, Status)
+  - Enhanced Product View with 4 tabs (Overview, Specs, Media, Supplier)
+- **Ratings Moderation**: Approve/Reject ratings and supplier replies
+- **Category Management**: Nested categories/subcategories with add/edit/delete
+- **Buyer Management**: View profiles, suspend/delete actions
+- **Platform Insights**: Analytics charts
 
-### Buyer Dashboard
-- Overview with enquiries, suppliers contacted, ratings
-- My Enquiries (view/send new)
-- Ratings (submit/edit ratings)
-- Profile Management (update contact info)
+### Phase 3: Supplier Dashboard ✅
+- **Overview**: Profile views, enquiries, active products, ratings stats
+- **Company Profile**: Edit profile, document management with expiry tracking
+- **Product Management**: 
+  - Comprehensive 4-tab Add/Edit Product form:
+    1. Basic Info (name, category, subcategory, descriptions)
+    2. Specs & Dimensions (dynamic key-value specs, physical dimensions)
+    3. Origin & Certs (country, lead time, availability, certifications)
+    4. Media & Tags (images, datasheet, technical docs, video, industry tags, AI summary)
+  - Status resets to "Pending Approval" on edit
+- **Enquiries**: View and reply to buyer enquiries
+- **Ratings**: View reviews and submit replies (pending admin approval)
 
-### Shared Components
-- DashboardShell (sidebar + top navigation)
-- StatCard, StatusBadge, DataTable, ActionButton, RatingStars
-- Mock data with realistic defense industry content
+### Phase 4: Buyer Dashboard 🔄 (Partial)
+- Basic structure implemented
+- Needs alignment with latest mockData structure
 
-## Test Coverage
-- 62 Playwright E2E tests - 100% pass rate
-- Core flows, admin dashboard, supplier/buyer dashboards, golden path journeys
+### Phase 5: Data Alignment ✅
+- Product data structure consistent across Admin/Supplier views
+- Supplier information linked to products
+- Mock data in `/app/frontend/src/data/mockData.js`
 
-## Prioritized Backlog
-### P0 (Completed)
-- All role-based dashboards implemented
+---
 
-### P1 (Future - Backend Integration)
-- Connect to real backend APIs
-- Implement authentication
-- Real database persistence
+## Technical Architecture
 
-### P2 (Future Enhancements)
-- Advanced filtering and sorting
-- Export functionality (PDF/CSV)
-- Real-time notifications
-- Multi-language support
+```
+/app/frontend/src/
+├── App.js                          # Main app with routing & role context
+├── index.css                       # Global styles + Tailwind
+├── components/
+│   ├── layout/DashboardShell.jsx   # Main layout wrapper
+│   ├── shared/                     # Reusable components
+│   │   ├── StatCard.jsx
+│   │   ├── StatusBadge.jsx
+│   │   ├── DataTable.jsx
+│   │   ├── ActionButton.jsx
+│   │   └── RatingStars.jsx
+│   └── ui/                         # Shadcn UI components
+├── data/mockData.js                # All mock data
+└── pages/
+    ├── AdminDashboard.jsx          # Admin role dashboard
+    ├── SupplierDashboard.jsx       # Supplier role dashboard
+    └── BuyerDashboard.jsx          # Buyer role dashboard
+```
 
-## Next Tasks
-1. Client approval of UI prototype
-2. Backend API development
-3. Authentication system integration
-4. Real database integration
+---
+
+## Completed Features (April 9, 2026)
+
+### Supplier Product Form Enhancement
+- 4-tab form structure matching product detail page
+- Dynamic technical specifications (add/edit/remove key-value pairs)
+- Dimensions fields (length, width, height, weight, volume)
+- Country of Origin dropdown with 19 countries
+- Lead time with unit selector (days/weeks/months)
+- Availability options (In Stock / Made to Order)
+- 17 defense industry certifications with custom input
+- Multi-image upload with primary image selection
+- Datasheet and technical document uploads
+- Video URL input
+- 15 industry tags (UAV, Naval, Radar, etc.)
+- Application/Use Case text field
+- AI-Ready Product Summary field
+- Form validation with inline errors
+- Status reset to "Pending Approval" on edit
+
+### Admin Product View Enhancement
+- Tabbed interface: Overview, Specs, Media, Supplier
+- Overview tab: Product image gallery, name, category, Origin & Delivery, description, rating
+- Specs tab: Technical specifications table, dimensions, certifications
+- Media tab: Images, datasheet download, technical docs, video link
+- Supplier tab: Full supplier info with View Profile button, rating, product count, contact info, certifications
+
+### Admin Product Management Table
+- Added Supplier Name column with icon
+- 3 filter dropdowns: Supplier, Category, Status
+- Search across products and suppliers
+
+### Admin Overview Cleanup
+- Removed "Expiring in 7/15/30 Days" cards
+- Kept only "Expired Documents" card
+
+---
+
+## Backlog / Future Tasks
+
+### P0 - High Priority
+- [ ] Complete BuyerDashboard.jsx updates to match new data structure
+- [ ] Disable review edit button after submission (Buyer)
+
+### P1 - Medium Priority
+- [ ] Add product search/browse page for Buyers
+- [ ] Implement RFQ (Request for Quote) flow
+- [ ] Add product comparison feature
+
+### P2 - Low Priority
+- [ ] Export data to CSV/PDF
+- [ ] Advanced analytics for suppliers
+- [ ] Notification preferences settings
+
+---
+
+## Mock Data Structure
+
+### Products
+```javascript
+{
+  id, name, supplierId, supplierName, category, subcategory,
+  shortDescription, description, specifications[], dimensions{},
+  countryOfOrigin, leadTime, availability, certifications[],
+  industryTags[], applicationUseCase, aiSummary,
+  images[], primaryImageIndex, datasheet, technicalDocs[], videoUrl,
+  rating, status, image
+}
+```
+
+### Suppliers
+```javascript
+{
+  id, name, email, phone, country, type, status,
+  productsCount, rating, certifications[], documents[],
+  documentStatus, profileViews, joinDate
+}
+```
