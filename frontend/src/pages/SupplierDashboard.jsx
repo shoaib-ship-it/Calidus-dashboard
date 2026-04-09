@@ -534,11 +534,14 @@ export const SupplierDashboard = () => {
   // Product Form Component (shared between Add and Edit)
   const ProductFormContent = ({ isEdit = false }) => (
     <Tabs value={activeFormTab} onValueChange={setActiveFormTab} className="w-full">
-      <TabsList className="grid w-full grid-cols-4 mb-4">
+      <TabsList className="grid w-full grid-cols-5 mb-4">
         <TabsTrigger value="basic" className="text-xs">Basic Info</TabsTrigger>
         <TabsTrigger value="specs" className="text-xs">Specs & Dimensions</TabsTrigger>
         <TabsTrigger value="origin" className="text-xs">Origin & Certs</TabsTrigger>
         <TabsTrigger value="media" className="text-xs">Media & Tags</TabsTrigger>
+        <TabsTrigger value="preview" className="text-xs flex items-center gap-1" data-testid="preview-tab">
+          <Eye className="h-3 w-3" />Preview
+        </TabsTrigger>
       </TabsList>
 
       {/* TAB 1: Basic Product Information */}
@@ -1049,8 +1052,258 @@ export const SupplierDashboard = () => {
           <p className="text-xs text-muted-foreground mt-1">This helps improve search relevance and AI-powered recommendations</p>
         </div>
       </TabsContent>
+
+      {/* TAB 5: PREVIEW - How Buyers Will See Your Product */}
+      <TabsContent value="preview" className="mt-0">
+        <div className="p-4 bg-gradient-to-r from-primary/10 to-transparent border border-primary/20 rounded-sm mb-6">
+          <div className="flex items-center gap-2 mb-1">
+            <Eye className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium text-primary">Buyer Preview Mode</span>
+          </div>
+          <p className="text-xs text-muted-foreground">This is how your product will appear to buyers in the marketplace</p>
+        </div>
+
+        {/* Preview Content - Mimics Buyer Product Detail View */}
+        <div className="space-y-6 border border-border rounded-sm p-4 bg-card/50">
+          {/* Product Header with Image */}
+          <div className="flex gap-6">
+            {/* Image Gallery Preview */}
+            <div className="w-48 flex-shrink-0">
+              {productForm.images.length > 0 ? (
+                <div className="space-y-2">
+                  <img 
+                    src={productForm.images[productForm.primaryImageIndex]?.url || productForm.images[0]?.url} 
+                    alt="Primary" 
+                    className="w-full h-32 object-cover rounded-sm bg-muted"
+                  />
+                  {productForm.images.length > 1 && (
+                    <div className="grid grid-cols-4 gap-1">
+                      {productForm.images.slice(0, 4).map((img, idx) => (
+                        <img key={idx} src={img.url} alt={`Thumb ${idx + 1}`} className={`w-full h-8 object-cover rounded-sm ${idx === productForm.primaryImageIndex ? 'ring-1 ring-primary' : ''}`} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="w-full h-32 bg-muted rounded-sm flex items-center justify-center">
+                  <Image className="h-8 w-8 text-muted-foreground" />
+                </div>
+              )}
+            </div>
+
+            {/* Product Info */}
+            <div className="flex-1">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <h2 className="text-xl font-bold font-['Barlow_Condensed'] uppercase">
+                    {productForm.name || <span className="text-muted-foreground italic">Product Name</span>}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {productForm.category || "Category"} • {productForm.subcategory || "Subcategory"}
+                  </p>
+                </div>
+                <Badge variant="outline" className="text-amber-400 border-amber-400/50">Preview</Badge>
+              </div>
+
+              {/* Short Description */}
+              <p className="text-sm text-muted-foreground mb-4">
+                {productForm.shortDescription || <span className="italic">Short description will appear here...</span>}
+              </p>
+
+              {/* Quick Info Grid */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-2 bg-muted/30 rounded-sm">
+                  <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Globe className="h-3 w-3" />Origin</p>
+                  <p className="text-sm font-medium">{productForm.countryOfOrigin || "—"}</p>
+                </div>
+                <div className="p-2 bg-muted/30 rounded-sm">
+                  <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Truck className="h-3 w-3" />Lead Time</p>
+                  <p className="text-sm font-medium">{productForm.leadTime ? `${productForm.leadTime} ${productForm.leadTimeUnit}` : "—"}</p>
+                </div>
+                <div className="p-2 bg-muted/30 rounded-sm">
+                  <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Package className="h-3 w-3" />Availability</p>
+                  <p className="text-sm font-medium capitalize">{productForm.availability?.replace('-', ' ') || "—"}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Technical Specifications Preview */}
+          <div>
+            <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3 flex items-center gap-2">
+              <Layers className="h-4 w-4" />Technical Specifications
+            </h3>
+            {productForm.specifications.filter(s => s.key && s.value).length > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {productForm.specifications.filter(s => s.key && s.value).map((spec, idx) => (
+                  <div key={idx} className="flex justify-between p-2 bg-muted/20 rounded-sm">
+                    <span className="text-sm text-muted-foreground">{spec.key}</span>
+                    <span className="text-sm font-medium">{spec.value}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">No specifications added yet</p>
+            )}
+          </div>
+
+          {/* Dimensions Preview */}
+          {(productForm.dimensions.length || productForm.dimensions.width || productForm.dimensions.height || productForm.dimensions.weight) && (
+            <>
+              <Separator />
+              <div>
+                <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3 flex items-center gap-2">
+                  <Ruler className="h-4 w-4" />Dimensions
+                </h3>
+                <div className="flex flex-wrap gap-3">
+                  {productForm.dimensions.length && <Badge variant="secondary">L: {productForm.dimensions.length}</Badge>}
+                  {productForm.dimensions.width && <Badge variant="secondary">W: {productForm.dimensions.width}</Badge>}
+                  {productForm.dimensions.height && <Badge variant="secondary">H: {productForm.dimensions.height}</Badge>}
+                  {productForm.dimensions.weight && <Badge variant="secondary"><Weight className="h-3 w-3 mr-1" />{productForm.dimensions.weight}</Badge>}
+                  {productForm.dimensions.volume && <Badge variant="secondary"><Box className="h-3 w-3 mr-1" />{productForm.dimensions.volume}</Badge>}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Certifications Preview */}
+          {([...productForm.certifications, ...productForm.customCertifications].length > 0) && (
+            <>
+              <Separator />
+              <div>
+                <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3 flex items-center gap-2">
+                  <Shield className="h-4 w-4" />Certifications
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {[...productForm.certifications, ...productForm.customCertifications].map((cert, idx) => (
+                    <Badge key={idx} variant="outline" className="gap-1">
+                      <Award className="h-3 w-3" />{cert}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Industry Tags Preview */}
+          {productForm.industryTags.length > 0 && (
+            <>
+              <Separator />
+              <div>
+                <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3 flex items-center gap-2">
+                  <Tag className="h-4 w-4" />Industry Tags
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {productForm.industryTags.map((tag, idx) => (
+                    <Badge key={idx}>{tag}</Badge>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Detailed Description Preview */}
+          {productForm.detailedDescription && (
+            <>
+              <Separator />
+              <div>
+                <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3">Detailed Description</h3>
+                <p className="text-sm whitespace-pre-wrap">{productForm.detailedDescription}</p>
+              </div>
+            </>
+          )}
+
+          {/* Application / Use Case Preview */}
+          {productForm.applicationUseCase && (
+            <>
+              <Separator />
+              <div>
+                <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3">Application / Use Case</h3>
+                <p className="text-sm">{productForm.applicationUseCase}</p>
+              </div>
+            </>
+          )}
+
+          {/* Documents Preview */}
+          {(productForm.datasheet || productForm.technicalDocs.length > 0 || productForm.videoUrl) && (
+            <>
+              <Separator />
+              <div>
+                <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3 flex items-center gap-2">
+                  <FileText className="h-4 w-4" />Documents & Media
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {productForm.datasheet && (
+                    <Badge variant="outline" className="gap-1"><FileText className="h-3 w-3" />Datasheet Available</Badge>
+                  )}
+                  {productForm.technicalDocs.length > 0 && (
+                    <Badge variant="outline" className="gap-1"><Layers className="h-3 w-3" />{productForm.technicalDocs.length} Technical Doc{productForm.technicalDocs.length > 1 ? 's' : ''}</Badge>
+                  )}
+                  {productForm.videoUrl && (
+                    <Badge variant="outline" className="gap-1"><Video className="h-3 w-3" />Video Available</Badge>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Supplier Info (Your Company) */}
+          <Separator />
+          <div className="p-3 bg-primary/5 border border-primary/20 rounded-sm">
+            <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3">Supplied By</h3>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-sm bg-primary/20 flex items-center justify-center">
+                <Building2 className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-medium">{supplier.name}</p>
+                <p className="text-xs text-muted-foreground">{supplier.type} • {supplier.country}</p>
+              </div>
+              <div className="ml-auto">
+                <RatingStars rating={supplier.rating} size="sm" />
+              </div>
+            </div>
+          </div>
+
+          {/* Preview Completeness Indicator */}
+          <div className="p-3 bg-muted/30 rounded-sm">
+            <p className="text-xs text-muted-foreground mb-2">Product Listing Completeness</p>
+            <div className="flex items-center gap-3">
+              <Progress value={calculateCompleteness()} className="flex-1 h-2" />
+              <span className="text-sm font-medium">{calculateCompleteness()}%</span>
+            </div>
+            {calculateCompleteness() < 70 && (
+              <p className="text-xs text-amber-400 mt-2 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                Add more details to improve discoverability
+              </p>
+            )}
+          </div>
+        </div>
+      </TabsContent>
     </Tabs>
   );
+
+  // Calculate product completeness percentage
+  const calculateCompleteness = () => {
+    let score = 0;
+    let total = 10;
+    
+    if (productForm.name) score++;
+    if (productForm.category) score++;
+    if (productForm.shortDescription) score++;
+    if (productForm.detailedDescription) score++;
+    if (productForm.specifications.filter(s => s.key && s.value).length > 0) score++;
+    if (productForm.countryOfOrigin) score++;
+    if (productForm.leadTime) score++;
+    if ([...productForm.certifications, ...productForm.customCertifications].length > 0) score++;
+    if (productForm.images.length > 0) score++;
+    if (productForm.industryTags.length > 0) score++;
+    
+    return Math.round((score / total) * 100);
+  };
 
   return (
     <>
