@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useRole, useNavigation } from "@/App";
+import { toast } from "sonner";
 import { 
   Select, 
   SelectContent, 
@@ -9,6 +10,8 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,8 +20,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Search, 
   Bell, 
@@ -36,11 +43,15 @@ import {
   BarChart3,
   Building2,
   Inbox,
-  FileText,
   ChevronRight,
   Menu,
-  X
+  X,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  FileText
 } from "lucide-react";
+import { notifications, messages, supplierNotifications } from "@/data/mockData";
 
 // Navigation items for each role
 const navigationConfig = {
@@ -80,14 +91,68 @@ const roleIcons = {
   buyer: UserCircle,
 };
 
+const getNotificationIcon = (type) => {
+  switch (type) {
+    case 'approval': return CheckCircle;
+    case 'expiry': return AlertTriangle;
+    case 'rating': return Star;
+    case 'enquiry': return MessageSquare;
+    default: return Bell;
+  }
+};
+
+const getNotificationColor = (type, urgent) => {
+  if (urgent) return 'text-red-400';
+  switch (type) {
+    case 'approval': return 'text-emerald-400';
+    case 'expiry': return 'text-amber-400';
+    case 'rating': return 'text-blue-400';
+    case 'enquiry': return 'text-primary';
+    default: return 'text-muted-foreground';
+  }
+};
+
 export const DashboardShell = ({ children }) => {
   const { currentRole, setCurrentRole } = useRole();
   const { activeSection, setActiveSection } = useNavigation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notificationsList, setNotificationsList] = useState(
+    currentRole === 'supplier' ? supplierNotifications : notifications
+  );
+  const [messagesList] = useState(messages);
 
   const navItems = navigationConfig[currentRole] || [];
   const RoleIcon = roleIcons[currentRole];
+
+  const unreadNotifications = notificationsList.filter(n => !n.read).length;
+  const unreadMessages = messagesList.reduce((acc, m) => acc + m.unread, 0);
+
+  const handleNotificationClick = (notification) => {
+    setNotificationsList(prev => prev.map(n => 
+      n.id === notification.id ? { ...n, read: true } : n
+    ));
+    if (notification.link) {
+      setActiveSection(notification.link);
+    }
+    toast.info(notification.title);
+  };
+
+  const handleMessageClick = (message) => {
+    setActiveSection('enquiries');
+    toast.info(`Opening conversation: ${message.productName}`);
+  };
+
+  const markAllNotificationsRead = () => {
+    setNotificationsList(prev => prev.map(n => ({ ...n, read: true })));
+    toast.success("All notifications marked as read");
+  };
+
+  // Update notifications when role changes
+  const handleRoleChange = (role) => {
+    setCurrentRole(role);
+    setNotificationsList(role === 'supplier' ? supplierNotifications : notifications);
+  };
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -244,7 +309,7 @@ export const DashboardShell = ({ children }) => {
               <p className="text-[10px] uppercase tracking-[0.15em] font-semibold text-muted-foreground/70 mb-1">
                 Select Role
               </p>
-              <Select value={currentRole} onValueChange={setCurrentRole}>
+              <Select value={currentRole} onValueChange={handleRoleChange}>
                 <SelectTrigger 
                   className="w-[180px] h-9 bg-black/20 border-border rounded-sm text-sm"
                   data-testid="role-selector"
@@ -288,30 +353,151 @@ export const DashboardShell = ({ children }) => {
             </div>
 
             {/* Notifications */}
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="relative h-9 w-9"
-              data-testid="notifications-btn"
-            >
-              <Bell className="h-4 w-4" />
-              <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-destructive">
-                3
-              </Badge>
-            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="relative h-9 w-9"
+                  data-testid="notifications-btn"
+                >
+                  <Bell className="h-4 w-4" />
+                  {unreadNotifications > 0 && (
+                    <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-destructive">
+                      {unreadNotifications}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="end">
+                <div className="p-3 border-b border-border flex items-center justify-between">
+                  <h4 className="font-semibold text-sm">Notifications</h4>
+                  {unreadNotifications > 0 && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-xs h-7"
+                      onClick={markAllNotificationsRead}
+                      data-testid="mark-all-read-btn"
+                    >
+                      Mark all read
+                    </Button>
+                  )}
+                </div>
+                <ScrollArea className="h-[300px]">
+                  {notificationsList.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-muted-foreground">
+                      No notifications
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {notificationsList.map((notification) => {
+                        const Icon = getNotificationIcon(notification.type);
+                        const iconColor = getNotificationColor(notification.type, notification.urgent);
+                        return (
+                          <button
+                            key={notification.id}
+                            onClick={() => handleNotificationClick(notification)}
+                            className={`w-full p-3 text-left hover:bg-muted/50 transition-colors ${
+                              !notification.read ? 'bg-primary/5' : ''
+                            }`}
+                            data-testid={`notification-${notification.id}`}
+                          >
+                            <div className="flex gap-3">
+                              <div className={`h-8 w-8 rounded-sm flex items-center justify-center flex-shrink-0 ${
+                                notification.urgent ? 'bg-red-500/20' : 'bg-muted'
+                              }`}>
+                                <Icon className={`h-4 w-4 ${iconColor}`} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-medium ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                  {notification.title}
+                                </p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {notification.message}
+                                </p>
+                                <p className="text-xs text-muted-foreground/70 mt-1">
+                                  {notification.date}
+                                </p>
+                              </div>
+                              {!notification.read && (
+                                <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-2" />
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
 
             {/* Messages */}
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="relative h-9 w-9"
-              data-testid="messages-btn"
-            >
-              <MessageSquare className="h-4 w-4" />
-              <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-primary">
-                5
-              </Badge>
-            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="relative h-9 w-9"
+                  data-testid="messages-btn"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  {unreadMessages > 0 && (
+                    <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-primary">
+                      {unreadMessages}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="end">
+                <div className="p-3 border-b border-border">
+                  <h4 className="font-semibold text-sm">Messages</h4>
+                </div>
+                <ScrollArea className="h-[300px]">
+                  {messagesList.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-muted-foreground">
+                      No messages
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {messagesList.map((message) => (
+                        <button
+                          key={message.id}
+                          onClick={() => handleMessageClick(message)}
+                          className={`w-full p-3 text-left hover:bg-muted/50 transition-colors ${
+                            message.unread > 0 ? 'bg-primary/5' : ''
+                          }`}
+                          data-testid={`message-${message.id}`}
+                        >
+                          <div className="flex gap-3">
+                            <div className="h-8 w-8 rounded-sm bg-muted flex items-center justify-center flex-shrink-0">
+                              <Package className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-medium ${message.unread > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                {message.productName}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {message.participants.join(' ↔ ')}
+                              </p>
+                              <p className="text-xs text-muted-foreground truncate mt-1">
+                                {message.lastMessage}
+                              </p>
+                            </div>
+                            {message.unread > 0 && (
+                              <Badge className="h-5 px-1.5 text-[10px]">
+                                {message.unread}
+                              </Badge>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
 
             {/* User Menu */}
             <DropdownMenu>
@@ -332,16 +518,26 @@ export const DashboardShell = ({ children }) => {
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem data-testid="user-menu-profile">
+                <DropdownMenuItem 
+                  data-testid="user-menu-profile"
+                  onClick={() => setActiveSection('profile')}
+                >
                   <User className="mr-2 h-4 w-4" />
                   Profile
                 </DropdownMenuItem>
-                <DropdownMenuItem data-testid="user-menu-settings">
+                <DropdownMenuItem 
+                  data-testid="user-menu-settings"
+                  onClick={() => toast.info("Settings panel would open here")}
+                >
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive" data-testid="user-menu-logout">
+                <DropdownMenuItem 
+                  className="text-destructive" 
+                  data-testid="user-menu-logout"
+                  onClick={() => toast.info("Logout functionality would trigger here")}
+                >
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout
                 </DropdownMenuItem>

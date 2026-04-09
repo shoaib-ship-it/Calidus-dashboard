@@ -3,6 +3,8 @@ import { useNavigation } from "@/App";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -11,52 +13,40 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { DataTable } from "@/components/shared/DataTable";
 import { ActionButton, ActionButtonGroup } from "@/components/shared/ActionButton";
 import { RatingStars } from "@/components/shared/RatingStars";
 import {
-  Building2,
-  Users,
-  Package,
-  Clock,
-  Star,
-  FolderTree,
-  Eye,
-  Check,
-  X,
-  Ban,
-  Trash2,
-  Edit,
-  Plus,
-  ChevronRight,
-  TrendingUp,
+  Building2, Users, Package, Clock, Star, FolderTree, Eye, Check, X, Ban, Trash2, Edit, Plus,
+  ChevronRight, ChevronDown, TrendingUp, Mail, Phone, MapPin, Award, Calendar, AlertTriangle,
+  FileWarning, FileX, FileCheck
 } from "lucide-react";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area,
 } from "recharts";
 import {
-  suppliers as initialSuppliers,
-  products as initialProducts,
-  buyers as initialBuyers,
-  ratings as initialRatings,
-  categories as initialCategories,
-  analyticsData,
-  adminStats as initialStats,
+  suppliers as initialSuppliers, products as initialProducts, buyers as initialBuyers,
+  ratings as initialRatings, categories as initialCategories, analyticsData, enquiries,
+  getDocumentExpiryStats,
 } from "@/data/mockData";
 
-// Custom chart tooltip
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
@@ -64,8 +54,7 @@ const CustomTooltip = ({ active, payload, label }) => {
         <p className="text-sm font-medium mb-1">{label}</p>
         {payload.map((entry, index) => (
           <p key={index} className="text-xs text-muted-foreground">
-            <span style={{ color: entry.color }}>{entry.name}: </span>
-            {entry.value}
+            <span style={{ color: entry.color }}>{entry.name}: </span>{entry.value}
           </p>
         ))}
       </div>
@@ -75,18 +64,25 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export const AdminDashboard = () => {
-  const { activeSection } = useNavigation();
+  const { activeSection, setActiveSection } = useNavigation();
   const [suppliers, setSuppliers] = useState(initialSuppliers);
   const [products, setProducts] = useState(initialProducts);
   const [buyersData, setBuyersData] = useState(initialBuyers);
   const [ratingsData, setRatingsData] = useState(initialRatings);
   const [categoriesData, setCategoriesData] = useState(initialCategories);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogAction, setDialogAction] = useState({ type: "", item: null });
-  const [newCategory, setNewCategory] = useState("");
-  const [addCategoryOpen, setAddCategoryOpen] = useState(false);
+  
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, type: "", item: null, message: "" });
+  const [editDialog, setEditDialog] = useState({ open: false, type: "", item: null });
+  const [addCategoryDialog, setAddCategoryDialog] = useState(false);
+  const [addSubcategoryDialog, setAddSubcategoryDialog] = useState({ open: false, category: null });
+  const [viewSheet, setViewSheet] = useState({ open: false, type: "", item: null });
+  
+  const [newCategory, setNewCategory] = useState({ name: "", subcategories: "" });
+  const [newSubcategory, setNewSubcategory] = useState("");
+  const [editForm, setEditForm] = useState({});
 
-  // Recalculate stats based on current data
+  const documentStats = getDocumentExpiryStats(suppliers);
+  
   const stats = {
     totalSuppliers: suppliers.length,
     totalBuyers: buyersData.length,
@@ -94,78 +90,70 @@ export const AdminDashboard = () => {
     pendingSupplierApprovals: suppliers.filter(s => s.status === 'pending').length,
     pendingProductApprovals: products.filter(p => p.status === 'pending').length,
     pendingRatings: ratingsData.filter(r => r.status === 'pending').length,
-    totalCategories: categoriesData.length
+    totalCategories: categoriesData.length,
+    expiredDocuments: documentStats.expired,
+    expiringDocuments: documentStats.expiring7 + documentStats.expiring15 + documentStats.expiring30
   };
 
-  // Action handlers
-  const handleAction = (type, item) => {
-    setDialogAction({ type, item });
-    setDialogOpen(true);
+  const openConfirmDialog = (type, item, message) => {
+    setConfirmDialog({ open: true, type, item, message });
   };
 
-  const confirmAction = () => {
-    const { type, item } = dialogAction;
+  const handleConfirmAction = () => {
+    const { type, item } = confirmDialog;
     
     switch (type) {
       case "approve-supplier":
-        setSuppliers(prev => prev.map(s => 
-          s.id === item.id ? { ...s, status: "active" } : s
-        ));
+        setSuppliers(prev => prev.map(s => s.id === item.id ? { ...s, status: "active" } : s));
         toast.success(`Supplier "${item.name}" approved successfully`);
         break;
       case "reject-supplier":
-        setSuppliers(prev => prev.map(s => 
-          s.id === item.id ? { ...s, status: "rejected" } : s
-        ));
-        toast.success(`Supplier "${item.name}" rejected`);
+        setSuppliers(prev => prev.map(s => s.id === item.id ? { ...s, status: "rejected" } : s));
+        toast.error(`Supplier "${item.name}" rejected`);
         break;
       case "suspend-supplier":
-        setSuppliers(prev => prev.map(s => 
-          s.id === item.id ? { ...s, status: "suspended" } : s
-        ));
-        toast.success(`Supplier "${item.name}" suspended`);
+        setSuppliers(prev => prev.map(s => s.id === item.id ? { ...s, status: "suspended" } : s));
+        toast.warning(`Supplier "${item.name}" suspended`);
         break;
       case "delete-supplier":
         setSuppliers(prev => prev.filter(s => s.id !== item.id));
         toast.success(`Supplier "${item.name}" deleted`);
         break;
       case "approve-product":
-        setProducts(prev => prev.map(p => 
-          p.id === item.id ? { ...p, status: "approved" } : p
-        ));
+        setProducts(prev => prev.map(p => p.id === item.id ? { ...p, status: "approved" } : p));
         toast.success(`Product "${item.name}" approved`);
         break;
       case "reject-product":
-        setProducts(prev => prev.map(p => 
-          p.id === item.id ? { ...p, status: "rejected" } : p
-        ));
-        toast.success(`Product "${item.name}" rejected`);
+        setProducts(prev => prev.map(p => p.id === item.id ? { ...p, status: "rejected" } : p));
+        toast.error(`Product "${item.name}" rejected`);
         break;
       case "delete-product":
         setProducts(prev => prev.filter(p => p.id !== item.id));
         toast.success(`Product "${item.name}" deleted`);
         break;
       case "approve-rating":
-        setRatingsData(prev => prev.map(r => 
-          r.id === item.id ? { ...r, status: "approved" } : r
-        ));
-        toast.success("Rating approved");
+        setRatingsData(prev => prev.map(r => r.id === item.id ? { ...r, status: "approved" } : r));
+        toast.success("Rating approved and now visible");
         break;
       case "reject-rating":
-        setRatingsData(prev => prev.map(r => 
-          r.id === item.id ? { ...r, status: "rejected" } : r
-        ));
-        toast.success("Rating rejected");
+        setRatingsData(prev => prev.map(r => r.id === item.id ? { ...r, status: "rejected" } : r));
+        toast.error("Rating rejected and hidden");
         break;
       case "remove-rating":
         setRatingsData(prev => prev.filter(r => r.id !== item.id));
         toast.success("Rating removed");
         break;
+      case "approve-reply":
+        setRatingsData(prev => prev.map(r => r.id === item.id ? { ...r, supplierReplyStatus: "approved" } : r));
+        toast.success("Supplier reply approved and now visible");
+        break;
+      case "reject-reply":
+        setRatingsData(prev => prev.map(r => r.id === item.id ? { ...r, supplierReplyStatus: "rejected", supplierReply: null } : r));
+        toast.error("Supplier reply rejected");
+        break;
       case "suspend-buyer":
-        setBuyersData(prev => prev.map(b => 
-          b.id === item.id ? { ...b, status: "suspended" } : b
-        ));
-        toast.success(`Buyer "${item.name}" suspended`);
+        setBuyersData(prev => prev.map(b => b.id === item.id ? { ...b, status: "suspended" } : b));
+        toast.warning(`Buyer "${item.name}" suspended`);
         break;
       case "delete-buyer":
         setBuyersData(prev => prev.filter(b => b.id !== item.id));
@@ -175,72 +163,160 @@ export const AdminDashboard = () => {
         setCategoriesData(prev => prev.filter(c => c.id !== item.id));
         toast.success(`Category "${item.name}" deleted`);
         break;
+      case "delete-subcategory":
+        setCategoriesData(prev => prev.map(c => 
+          c.id === item.categoryId 
+            ? { ...c, subcategories: c.subcategories.filter(s => s.id !== item.id) }
+            : c
+        ));
+        toast.success(`Subcategory "${item.name}" deleted`);
+        break;
       default:
         break;
     }
     
-    setDialogOpen(false);
+    setConfirmDialog({ open: false, type: "", item: null, message: "" });
+  };
+
+  const openViewSheet = (type, item) => {
+    setViewSheet({ open: true, type, item });
+  };
+
+  const openEditDialog = (type, item) => {
+    setEditForm({ ...item });
+    setEditDialog({ open: true, type, item });
+  };
+
+  const handleEditSave = () => {
+    const { type } = editDialog;
+    
+    switch (type) {
+      case "product":
+        setProducts(prev => prev.map(p => p.id === editForm.id ? { ...editForm } : p));
+        toast.success(`Product "${editForm.name}" updated`);
+        break;
+      case "category":
+        setCategoriesData(prev => prev.map(c => c.id === editForm.id ? { ...editForm } : c));
+        toast.success(`Category "${editForm.name}" updated`);
+        break;
+      case "subcategory":
+        setCategoriesData(prev => prev.map(c => 
+          c.id === editForm.categoryId 
+            ? { ...c, subcategories: c.subcategories.map(s => s.id === editForm.id ? { ...editForm } : s) }
+            : c
+        ));
+        toast.success(`Subcategory "${editForm.name}" updated`);
+        break;
+      default:
+        break;
+    }
+    
+    setEditDialog({ open: false, type: "", item: null });
   };
 
   const handleAddCategory = () => {
-    if (newCategory.trim()) {
+    if (newCategory.name.trim()) {
       const newCat = {
         id: `CAT${String(categoriesData.length + 1).padStart(3, '0')}`,
-        name: newCategory,
-        subcategories: [],
+        name: newCategory.name,
+        subcategories: newCategory.subcategories
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
+          .map((name, idx) => ({ id: `SUB${Date.now()}${idx}`, name })),
         productCount: 0
       };
       setCategoriesData(prev => [...prev, newCat]);
-      toast.success(`Category "${newCategory}" added`);
-      setNewCategory("");
-      setAddCategoryOpen(false);
+      toast.success(`Category "${newCategory.name}" added`);
+      setNewCategory({ name: "", subcategories: "" });
+      setAddCategoryDialog(false);
     }
+  };
+
+  const handleAddSubcategory = () => {
+    if (newSubcategory.trim() && addSubcategoryDialog.category) {
+      const newSub = { id: `SUB${Date.now()}`, name: newSubcategory };
+      setCategoriesData(prev => prev.map(c => 
+        c.id === addSubcategoryDialog.category.id 
+          ? { ...c, subcategories: [...c.subcategories, newSub] }
+          : c
+      ));
+      toast.success(`Subcategory "${newSubcategory}" added to ${addSubcategoryDialog.category.name}`);
+      setNewSubcategory("");
+      setAddSubcategoryDialog({ open: false, category: null });
+    }
+  };
+
+  // Get buyer's enquiries and ratings for the detail view
+  const getBuyerDetails = (buyer) => {
+    const buyerEnquiries = enquiries.filter(e => e.buyerId === buyer.id);
+    const buyerRatings = ratingsData.filter(r => r.buyerId === buyer.id);
+    return { enquiries: buyerEnquiries, ratings: buyerRatings };
   };
 
   const renderContent = () => {
     switch (activeSection) {
       case "overview":
-        return <AdminOverview stats={stats} analyticsData={analyticsData} />;
+        return <AdminOverview stats={stats} analyticsData={analyticsData} documentStats={documentStats} onNavigate={setActiveSection} />;
       case "suppliers":
         return (
           <SupplierManagement 
             suppliers={suppliers} 
-            onAction={handleAction} 
+            onView={(item) => openViewSheet("supplier", item)}
+            onApprove={(item) => openConfirmDialog("approve-supplier", item, `Approve supplier "${item.name}"?`)}
+            onReject={(item) => openConfirmDialog("reject-supplier", item, `Reject supplier "${item.name}"?`)}
+            onSuspend={(item) => openConfirmDialog("suspend-supplier", item, `Suspend supplier "${item.name}"?`)}
+            onDelete={(item) => openConfirmDialog("delete-supplier", item, `Delete supplier "${item.name}"?`)}
           />
         );
       case "products":
         return (
           <ProductManagement 
             products={products} 
-            onAction={handleAction} 
+            onView={(item) => openViewSheet("product", item)}
+            onApprove={(item) => openConfirmDialog("approve-product", item, `Approve product "${item.name}"?`)}
+            onReject={(item) => openConfirmDialog("reject-product", item, `Reject product "${item.name}"?`)}
+            onEdit={(item) => openEditDialog("product", item)}
+            onDelete={(item) => openConfirmDialog("delete-product", item, `Delete product "${item.name}"?`)}
           />
         );
       case "ratings":
         return (
           <RatingsModeration 
             ratings={ratingsData} 
-            onAction={handleAction} 
+            onView={(item) => openViewSheet("rating", item)}
+            onApprove={(item) => openConfirmDialog("approve-rating", item, "Approve this rating?")}
+            onReject={(item) => openConfirmDialog("reject-rating", item, "Reject this rating?")}
+            onRemove={(item) => openConfirmDialog("remove-rating", item, "Remove this rating?")}
+            onApproveReply={(item) => openConfirmDialog("approve-reply", item, "Approve supplier's reply?")}
+            onRejectReply={(item) => openConfirmDialog("reject-reply", item, "Reject supplier's reply?")}
           />
         );
       case "categories":
         return (
           <CategoryManagement 
             categories={categoriesData} 
-            onAction={handleAction}
-            onAddCategory={() => setAddCategoryOpen(true)}
+            onEdit={(item) => openEditDialog("category", item)}
+            onEditSubcategory={(item) => openEditDialog("subcategory", item)}
+            onDelete={(item) => openConfirmDialog("delete-category", item, `Delete category "${item.name}"?`)}
+            onDeleteSubcategory={(item) => openConfirmDialog("delete-subcategory", item, `Delete subcategory "${item.name}"?`)}
+            onAddCategory={() => setAddCategoryDialog(true)}
+            onAddSubcategory={(category) => setAddSubcategoryDialog({ open: true, category })}
           />
         );
       case "buyers":
         return (
           <BuyerManagement 
             buyers={buyersData} 
-            onAction={handleAction} 
+            onView={(item) => openViewSheet("buyer", { ...item, ...getBuyerDetails(item) })}
+            onSuspend={(item) => openConfirmDialog("suspend-buyer", item, `Suspend buyer "${item.name}"?`)}
+            onDelete={(item) => openConfirmDialog("delete-buyer", item, `Delete buyer "${item.name}"?`)}
           />
         );
       case "analytics":
         return <PlatformInsights analyticsData={analyticsData} />;
       default:
-        return <AdminOverview stats={stats} analyticsData={analyticsData} />;
+        return <AdminOverview stats={stats} analyticsData={analyticsData} documentStats={documentStats} onNavigate={setActiveSection} />;
     }
   };
 
@@ -249,109 +325,414 @@ export const AdminDashboard = () => {
       {renderContent()}
       
       {/* Confirmation Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog({ ...confirmDialog, open })}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-['Barlow_Condensed'] uppercase tracking-wide">
+            <DialogTitle className="font-['Barlow_Condensed'] uppercase tracking-wide flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-400" />
               Confirm Action
             </DialogTitle>
-            <DialogDescription>
-              Are you sure you want to {dialogAction.type.replace("-", " ")}
-              {dialogAction.item?.name ? ` "${dialogAction.item.name}"` : ""}?
-            </DialogDescription>
+            <DialogDescription className="pt-2">{confirmDialog.message}</DialogDescription>
           </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConfirmDialog({ ...confirmDialog, open: false })} data-testid="confirm-cancel-btn">Cancel</Button>
+            <Button onClick={handleConfirmAction} data-testid="confirm-action-btn">Confirm</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Product Dialog */}
+      <Dialog open={editDialog.open && editDialog.type === "product"} onOpenChange={(open) => setEditDialog({ ...editDialog, open })}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-['Barlow_Condensed'] uppercase tracking-wide">Edit Product</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Product Name</Label>
+              <Input value={editForm.name || ""} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="bg-black/20 mt-1" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Category</Label>
+                <Input value={editForm.category || ""} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className="bg-black/20 mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Status</Label>
+                <Select value={editForm.status || "pending"} onValueChange={(value) => setEditForm({ ...editForm, status: value })}>
+                  <SelectTrigger className="bg-black/20 mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Description</Label>
+              <Textarea value={editForm.description || ""} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} className="bg-black/20 mt-1" />
+            </div>
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} data-testid="dialog-cancel-btn">
-              Cancel
-            </Button>
-            <Button onClick={confirmAction} data-testid="dialog-confirm-btn">
-              Confirm
-            </Button>
+            <Button variant="outline" onClick={() => setEditDialog({ ...editDialog, open: false })}>Cancel</Button>
+            <Button onClick={handleEditSave} data-testid="edit-product-save-btn">Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Category Dialog */}
+      <Dialog open={editDialog.open && editDialog.type === "category"} onOpenChange={(open) => setEditDialog({ ...editDialog, open })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-['Barlow_Condensed'] uppercase tracking-wide">Edit Category</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Category Name</Label>
+              <Input value={editForm.name || ""} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="bg-black/20 mt-1" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialog({ ...editDialog, open: false })}>Cancel</Button>
+            <Button onClick={handleEditSave} data-testid="edit-category-save-btn">Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Subcategory Dialog */}
+      <Dialog open={editDialog.open && editDialog.type === "subcategory"} onOpenChange={(open) => setEditDialog({ ...editDialog, open })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-['Barlow_Condensed'] uppercase tracking-wide">Edit Subcategory</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Subcategory Name</Label>
+              <Input value={editForm.name || ""} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="bg-black/20 mt-1" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialog({ ...editDialog, open: false })}>Cancel</Button>
+            <Button onClick={handleEditSave}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Add Category Dialog */}
-      <Dialog open={addCategoryOpen} onOpenChange={setAddCategoryOpen}>
+      <Dialog open={addCategoryDialog} onOpenChange={setAddCategoryDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-['Barlow_Condensed'] uppercase tracking-wide">
-              Add New Category
-            </DialogTitle>
+            <DialogTitle className="font-['Barlow_Condensed'] uppercase tracking-wide">Add New Category</DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            <Input
-              placeholder="Category name"
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value)}
-              className="bg-black/20"
-              data-testid="new-category-input"
-            />
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Category Name</Label>
+              <Input value={newCategory.name} onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })} placeholder="Enter category name" className="bg-black/20 mt-1" data-testid="new-category-name" />
+            </div>
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Subcategories (comma separated)</Label>
+              <Textarea value={newCategory.subcategories} onChange={(e) => setNewCategory({ ...newCategory, subcategories: e.target.value })} placeholder="Sub 1, Sub 2, Sub 3" className="bg-black/20 mt-1" data-testid="new-category-subcategories" />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddCategoryOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddCategory} data-testid="add-category-confirm-btn">
-              Add Category
-            </Button>
+            <Button variant="outline" onClick={() => setAddCategoryDialog(false)}>Cancel</Button>
+            <Button onClick={handleAddCategory} data-testid="add-category-submit-btn">Add Category</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add Subcategory Dialog */}
+      <Dialog open={addSubcategoryDialog.open} onOpenChange={(open) => setAddSubcategoryDialog({ ...addSubcategoryDialog, open })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-['Barlow_Condensed'] uppercase tracking-wide">Add Subcategory</DialogTitle>
+            {addSubcategoryDialog.category && (
+              <DialogDescription>Adding to: {addSubcategoryDialog.category.name}</DialogDescription>
+            )}
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Subcategory Name</Label>
+              <Input value={newSubcategory} onChange={(e) => setNewSubcategory(e.target.value)} placeholder="Enter subcategory name" className="bg-black/20 mt-1" data-testid="new-subcategory-name" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddSubcategoryDialog({ open: false, category: null })}>Cancel</Button>
+            <Button onClick={handleAddSubcategory} data-testid="add-subcategory-submit-btn">Add Subcategory</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Supplier Sheet */}
+      <Sheet open={viewSheet.open && viewSheet.type === "supplier"} onOpenChange={(open) => setViewSheet({ ...viewSheet, open })}>
+        <SheetContent className="w-[500px] sm:max-w-[500px] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="font-['Barlow_Condensed'] uppercase tracking-wide">Supplier Details</SheetTitle>
+          </SheetHeader>
+          {viewSheet.item && (
+            <div className="mt-6 space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="h-16 w-16 rounded-sm bg-primary/20 flex items-center justify-center">
+                  <Building2 className="h-8 w-8 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">{viewSheet.item.name}</h3>
+                  <p className="text-sm text-muted-foreground">{viewSheet.item.type}</p>
+                  <StatusBadge status={viewSheet.item.status} className="mt-1" />
+                </div>
+              </div>
+              <Separator />
+              <div className="space-y-3">
+                <h4 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Contact Information</h4>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm"><Mail className="h-4 w-4 text-muted-foreground" />{viewSheet.item.email}</div>
+                  <div className="flex items-center gap-2 text-sm"><Phone className="h-4 w-4 text-muted-foreground" />{viewSheet.item.phone}</div>
+                  <div className="flex items-center gap-2 text-sm"><MapPin className="h-4 w-4 text-muted-foreground" />{viewSheet.item.country}</div>
+                </div>
+              </div>
+              <Separator />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-muted/30 rounded-sm">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Products</p>
+                  <p className="text-2xl font-bold font-['Barlow_Condensed']">{viewSheet.item.productsCount}</p>
+                </div>
+                <div className="p-3 bg-muted/30 rounded-sm">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Rating</p>
+                  <RatingStars rating={viewSheet.item.rating} size="sm" />
+                </div>
+              </div>
+              <Separator />
+              <div className="space-y-3">
+                <h4 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Documents</h4>
+                {viewSheet.item.documents?.map((doc, idx) => (
+                  <div key={idx} className={`p-3 rounded-sm flex items-center justify-between ${
+                    doc.status === 'expired' ? 'bg-red-500/10 border border-red-500/20' :
+                    doc.status === 'expiring' ? 'bg-amber-500/10 border border-amber-500/20' :
+                    'bg-muted/30'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {doc.status === 'expired' ? <FileX className="h-4 w-4 text-red-400" /> :
+                       doc.status === 'expiring' ? <FileWarning className="h-4 w-4 text-amber-400" /> :
+                       <FileCheck className="h-4 w-4 text-emerald-400" />}
+                      <span className="text-sm">{doc.name}</span>
+                    </div>
+                    <span className={`text-xs ${
+                      doc.status === 'expired' ? 'text-red-400' :
+                      doc.status === 'expiring' ? 'text-amber-400' :
+                      'text-muted-foreground'
+                    }`}>
+                      {doc.status === 'expired' ? 'EXPIRED' : `Expires: ${doc.expiryDate}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <Separator />
+              <div className="space-y-3">
+                <h4 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Certifications</h4>
+                <div className="flex flex-wrap gap-2">
+                  {viewSheet.item.certifications?.map((cert, idx) => (
+                    <span key={idx} className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs rounded-sm">
+                      <Award className="h-3 w-3" />{cert}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* View Product Sheet */}
+      <Sheet open={viewSheet.open && viewSheet.type === "product"} onOpenChange={(open) => setViewSheet({ ...viewSheet, open })}>
+        <SheetContent className="w-[500px] sm:max-w-[500px] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="font-['Barlow_Condensed'] uppercase tracking-wide">Product Details</SheetTitle>
+          </SheetHeader>
+          {viewSheet.item && (
+            <div className="mt-6 space-y-6">
+              <img src={viewSheet.item.image} alt={viewSheet.item.name} className="w-full h-48 object-cover rounded-sm bg-muted" />
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">{viewSheet.item.name}</h3>
+                  <p className="text-sm text-muted-foreground">{viewSheet.item.category} • {viewSheet.item.subcategory}</p>
+                </div>
+                <StatusBadge status={viewSheet.item.status} />
+              </div>
+              <Separator />
+              <div className="grid grid-cols-2 gap-4">
+                <div><p className="text-xs uppercase text-muted-foreground">Lead Time</p><p className="text-sm font-medium">{viewSheet.item.leadTime}</p></div>
+                <div><p className="text-xs uppercase text-muted-foreground">Origin</p><p className="text-sm font-medium">{viewSheet.item.countryOfOrigin}</p></div>
+              </div>
+              <Separator />
+              <div><h4 className="text-xs uppercase text-muted-foreground mb-2">Description</h4><p className="text-sm">{viewSheet.item.description}</p></div>
+              <Separator />
+              <div><h4 className="text-xs uppercase text-muted-foreground mb-2">Specifications</h4>
+                {viewSheet.item.specifications?.map((spec, idx) => (<div key={idx} className="flex items-center gap-2 text-sm"><ChevronRight className="h-3 w-3 text-primary" />{spec}</div>))}
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* View Rating Sheet */}
+      <Sheet open={viewSheet.open && viewSheet.type === "rating"} onOpenChange={(open) => setViewSheet({ ...viewSheet, open })}>
+        <SheetContent className="w-[500px] sm:max-w-[500px] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="font-['Barlow_Condensed'] uppercase tracking-wide">Rating Details</SheetTitle>
+          </SheetHeader>
+          {viewSheet.item && (
+            <div className="mt-6 space-y-6">
+              <div className="flex items-start justify-between">
+                <div><h3 className="text-lg font-semibold">{viewSheet.item.productName}</h3><p className="text-sm text-muted-foreground">by {viewSheet.item.buyerName}</p></div>
+                <StatusBadge status={viewSheet.item.status} />
+              </div>
+              <div className="p-4 bg-muted/30 rounded-sm text-center">
+                <RatingStars rating={viewSheet.item.rating} size="lg" />
+                <p className="text-3xl font-bold font-['Barlow_Condensed'] mt-2">{viewSheet.item.rating}.0</p>
+              </div>
+              <Separator />
+              <div><h4 className="text-xs uppercase text-muted-foreground mb-2">Review</h4><p className="text-sm">{viewSheet.item.review}</p></div>
+              {viewSheet.item.supplierReply && (
+                <>
+                  <Separator />
+                  <div className={`p-3 rounded-sm ${viewSheet.item.supplierReplyStatus === 'approved' ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-xs uppercase text-muted-foreground">Supplier Reply</h4>
+                      <StatusBadge status={viewSheet.item.supplierReplyStatus || 'pending'} />
+                    </div>
+                    <p className="text-sm">{viewSheet.item.supplierReply}</p>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* View Buyer Sheet */}
+      <Sheet open={viewSheet.open && viewSheet.type === "buyer"} onOpenChange={(open) => setViewSheet({ ...viewSheet, open })}>
+        <SheetContent className="w-[500px] sm:max-w-[500px] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="font-['Barlow_Condensed'] uppercase tracking-wide">Buyer Details</SheetTitle>
+          </SheetHeader>
+          {viewSheet.item && (
+            <div className="mt-6 space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="h-16 w-16 rounded-sm bg-primary/20 flex items-center justify-center">
+                  <Users className="h-8 w-8 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">{viewSheet.item.name}</h3>
+                  <p className="text-sm text-muted-foreground">{viewSheet.item.company}</p>
+                  <StatusBadge status={viewSheet.item.status} className="mt-1" />
+                </div>
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm"><Mail className="h-4 w-4 text-muted-foreground" />{viewSheet.item.email}</div>
+                <div className="flex items-center gap-2 text-sm"><Phone className="h-4 w-4 text-muted-foreground" />{viewSheet.item.phone}</div>
+                <div className="flex items-center gap-2 text-sm"><MapPin className="h-4 w-4 text-muted-foreground" />{viewSheet.item.country}</div>
+                <div className="flex items-center gap-2 text-sm"><Calendar className="h-4 w-4 text-muted-foreground" />Member since {viewSheet.item.joinDate}</div>
+              </div>
+              <Separator />
+              <div>
+                <h4 className="text-xs uppercase text-muted-foreground mb-3">Enquiry History ({viewSheet.item.enquiries?.length || 0})</h4>
+                {viewSheet.item.enquiries?.length > 0 ? (
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {viewSheet.item.enquiries.map(e => (
+                      <div key={e.id} className="p-2 bg-muted/30 rounded-sm">
+                        <p className="text-sm font-medium">{e.productName}</p>
+                        <p className="text-xs text-muted-foreground">{e.supplierName} • {e.date}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="text-sm text-muted-foreground">No enquiries</p>}
+              </div>
+              <Separator />
+              <div>
+                <h4 className="text-xs uppercase text-muted-foreground mb-3">Ratings Given ({viewSheet.item.ratings?.length || 0})</h4>
+                {viewSheet.item.ratings?.length > 0 ? (
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {viewSheet.item.ratings.map(r => (
+                      <div key={r.id} className="p-2 bg-muted/30 rounded-sm flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">{r.productName}</p>
+                          <p className="text-xs text-muted-foreground">{r.submissionDate}</p>
+                        </div>
+                        <RatingStars rating={r.rating} size="sm" />
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="text-sm text-muted-foreground">No ratings</p>}
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </>
   );
 };
 
 // Admin Overview Section
-const AdminOverview = ({ stats, analyticsData }) => {
+const AdminOverview = ({ stats, analyticsData, documentStats, onNavigate }) => {
   return (
     <div className="space-y-8" data-testid="admin-overview">
       <div>
-        <h1 className="text-2xl font-bold font-['Barlow_Condensed'] uppercase tracking-wide mb-1">
-          Platform Command Center
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Monitor and manage all platform activities
-        </p>
+        <h1 className="text-2xl font-bold font-['Barlow_Condensed'] uppercase tracking-wide mb-1">Platform Command Center</h1>
+        <p className="text-sm text-muted-foreground">Monitor and manage all platform activities</p>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Total Suppliers"
-          value={stats.totalSuppliers}
-          icon={Building2}
-          trend="up"
-          trendValue="+12%"
-          testId="stat-total-suppliers"
-        />
-        <StatCard
-          title="Total Buyers"
-          value={stats.totalBuyers}
-          icon={Users}
-          trend="up"
-          trendValue="+8%"
-          testId="stat-total-buyers"
-        />
-        <StatCard
-          title="Total Products"
-          value={stats.totalProducts}
-          icon={Package}
-          trend="up"
-          trendValue="+15%"
-          testId="stat-total-products"
-        />
-        <StatCard
-          title="Categories"
-          value={stats.totalCategories}
-          icon={FolderTree}
-          testId="stat-total-categories"
-        />
+        <StatCard title="Total Suppliers" value={stats.totalSuppliers} icon={Building2} trend="up" trendValue="+12%" testId="stat-total-suppliers" />
+        <StatCard title="Total Buyers" value={stats.totalBuyers} icon={Users} trend="up" trendValue="+8%" testId="stat-total-buyers" />
+        <StatCard title="Total Products" value={stats.totalProducts} icon={Package} trend="up" trendValue="+15%" testId="stat-total-products" />
+        <StatCard title="Categories" value={stats.totalCategories} icon={FolderTree} testId="stat-total-categories" />
+      </div>
+
+      {/* Document Expiry Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <button onClick={() => onNavigate('suppliers')} className="stat-card bg-red-500/5 border-red-500/20 text-left hover:border-red-500/40 transition-colors" data-testid="stat-expired-docs">
+          <div className="flex items-center gap-3">
+            <FileX className="h-5 w-5 text-red-400" />
+            <div>
+              <p className="data-label">Expired Documents</p>
+              <p className="text-2xl font-bold font-['Barlow_Condensed']">{documentStats.expired}</p>
+            </div>
+          </div>
+        </button>
+        <button onClick={() => onNavigate('suppliers')} className="stat-card bg-amber-500/5 border-amber-500/20 text-left hover:border-amber-500/40 transition-colors" data-testid="stat-expiring-7">
+          <div className="flex items-center gap-3">
+            <FileWarning className="h-5 w-5 text-amber-400" />
+            <div>
+              <p className="data-label">Expiring in 7 Days</p>
+              <p className="text-2xl font-bold font-['Barlow_Condensed']">{documentStats.expiring7}</p>
+            </div>
+          </div>
+        </button>
+        <button onClick={() => onNavigate('suppliers')} className="stat-card bg-amber-500/5 border-amber-500/20 text-left hover:border-amber-500/40 transition-colors" data-testid="stat-expiring-15">
+          <div className="flex items-center gap-3">
+            <FileWarning className="h-5 w-5 text-yellow-400" />
+            <div>
+              <p className="data-label">Expiring in 15 Days</p>
+              <p className="text-2xl font-bold font-['Barlow_Condensed']">{documentStats.expiring15}</p>
+            </div>
+          </div>
+        </button>
+        <button onClick={() => onNavigate('suppliers')} className="stat-card bg-blue-500/5 border-blue-500/20 text-left hover:border-blue-500/40 transition-colors" data-testid="stat-expiring-30">
+          <div className="flex items-center gap-3">
+            <Clock className="h-5 w-5 text-blue-400" />
+            <div>
+              <p className="data-label">Expiring in 30 Days</p>
+              <p className="text-2xl font-bold font-['Barlow_Condensed']">{documentStats.expiring30}</p>
+            </div>
+          </div>
+        </button>
       </div>
 
       {/* Pending Approvals */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="stat-card bg-amber-500/5 border-amber-500/20">
+        <button onClick={() => onNavigate('suppliers')} className="stat-card bg-amber-500/5 border-amber-500/20 text-left hover:border-amber-500/40 transition-colors">
           <div className="flex items-center gap-3">
             <Clock className="h-5 w-5 text-amber-400" />
             <div>
@@ -359,8 +740,8 @@ const AdminOverview = ({ stats, analyticsData }) => {
               <p className="text-2xl font-bold font-['Barlow_Condensed']">{stats.pendingSupplierApprovals}</p>
             </div>
           </div>
-        </div>
-        <div className="stat-card bg-amber-500/5 border-amber-500/20">
+        </button>
+        <button onClick={() => onNavigate('products')} className="stat-card bg-amber-500/5 border-amber-500/20 text-left hover:border-amber-500/40 transition-colors">
           <div className="flex items-center gap-3">
             <Clock className="h-5 w-5 text-amber-400" />
             <div>
@@ -368,8 +749,8 @@ const AdminOverview = ({ stats, analyticsData }) => {
               <p className="text-2xl font-bold font-['Barlow_Condensed']">{stats.pendingProductApprovals}</p>
             </div>
           </div>
-        </div>
-        <div className="stat-card bg-amber-500/5 border-amber-500/20">
+        </button>
+        <button onClick={() => onNavigate('ratings')} className="stat-card bg-amber-500/5 border-amber-500/20 text-left hover:border-amber-500/40 transition-colors">
           <div className="flex items-center gap-3">
             <Star className="h-5 w-5 text-amber-400" />
             <div>
@@ -377,12 +758,10 @@ const AdminOverview = ({ stats, analyticsData }) => {
               <p className="text-2xl font-bold font-['Barlow_Condensed']">{stats.pendingRatings}</p>
             </div>
           </div>
-        </div>
+        </button>
       </div>
 
-      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Category Demand Trends */}
         <div className="dashboard-card">
           <div className="dashboard-card-header">
             <h3 className="dashboard-card-title">Category Demand Trends</h3>
@@ -397,13 +776,10 @@ const AdminOverview = ({ stats, analyticsData }) => {
                 <Tooltip content={<CustomTooltip />} />
                 <Area type="monotone" dataKey="uav" stackId="1" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} name="UAV" />
                 <Area type="monotone" dataKey="electronics" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.3} name="Electronics" />
-                <Area type="monotone" dataKey="surveillance" stackId="1" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.3} name="Surveillance" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
-
-        {/* Top Rated Suppliers */}
         <div className="dashboard-card">
           <div className="dashboard-card-header">
             <h3 className="dashboard-card-title">Top Rated Suppliers</h3>
@@ -427,11 +803,27 @@ const AdminOverview = ({ stats, analyticsData }) => {
 };
 
 // Supplier Management Section
-const SupplierManagement = ({ suppliers, onAction }) => {
+const SupplierManagement = ({ suppliers, onView, onApprove, onReject, onSuspend, onDelete }) => {
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [docFilter, setDocFilter] = useState("all");
+  
+  const filteredSuppliers = suppliers.filter(s => {
+    const matchesStatus = statusFilter === "all" || s.status === statusFilter;
+    const matchesDoc = docFilter === "all" || s.documentStatus === docFilter;
+    return matchesStatus && matchesDoc;
+  });
+
+  const getDocStatusBadge = (status) => {
+    switch (status) {
+      case 'expired': return <span className="status-badge bg-red-500/20 text-red-400 border-red-500/30">EXPIRED</span>;
+      case 'expiring': return <span className="status-badge bg-amber-500/20 text-amber-400 border-amber-500/30">EXPIRING</span>;
+      default: return <span className="status-badge bg-emerald-500/20 text-emerald-400 border-emerald-500/30">ACTIVE</span>;
+    }
+  };
+
   const columns = [
     { 
-      key: "name", 
-      label: "Supplier Name",
+      key: "name", label: "Supplier Name",
       render: (value, row) => (
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-sm bg-primary/20 flex items-center justify-center">
@@ -447,61 +839,23 @@ const SupplierManagement = ({ suppliers, onAction }) => {
     { key: "type", label: "Type" },
     { key: "country", label: "Country" },
     { key: "productsCount", label: "Products" },
-    { 
-      key: "rating", 
-      label: "Rating",
-      render: (value) => <RatingStars rating={value} size="sm" />
-    },
-    { 
-      key: "status", 
-      label: "Status",
-      render: (value) => <StatusBadge status={value} />
-    },
+    { key: "documentStatus", label: "Doc Status", render: (value) => getDocStatusBadge(value) },
+    { key: "status", label: "Status", render: (value) => <StatusBadge status={value} /> },
     {
-      key: "actions",
-      label: "Actions",
+      key: "actions", label: "Actions",
       render: (_, row) => (
         <ActionButtonGroup>
-          <ActionButton 
-            icon={Eye} 
-            label="View Profile" 
-            testId={`view-supplier-${row.id}`}
-            onClick={() => toast.info(`Viewing ${row.name}'s profile`)}
-          />
+          <ActionButton icon={Eye} label="View Profile" testId={`view-supplier-${row.id}`} onClick={() => onView(row)} />
           {row.status === "pending" && (
             <>
-              <ActionButton 
-                icon={Check} 
-                label="Approve" 
-                className="text-emerald-400 hover:text-emerald-300"
-                testId={`approve-supplier-${row.id}`}
-                onClick={() => onAction("approve-supplier", row)}
-              />
-              <ActionButton 
-                icon={X} 
-                label="Reject" 
-                className="text-red-400 hover:text-red-300"
-                testId={`reject-supplier-${row.id}`}
-                onClick={() => onAction("reject-supplier", row)}
-              />
+              <ActionButton icon={Check} label="Approve" className="text-emerald-400 hover:text-emerald-300" testId={`approve-supplier-${row.id}`} onClick={() => onApprove(row)} />
+              <ActionButton icon={X} label="Reject" className="text-red-400 hover:text-red-300" testId={`reject-supplier-${row.id}`} onClick={() => onReject(row)} />
             </>
           )}
           {row.status === "active" && (
-            <ActionButton 
-              icon={Ban} 
-              label="Suspend" 
-              className="text-amber-400 hover:text-amber-300"
-              testId={`suspend-supplier-${row.id}`}
-              onClick={() => onAction("suspend-supplier", row)}
-            />
+            <ActionButton icon={Ban} label="Suspend" className="text-amber-400 hover:text-amber-300" testId={`suspend-supplier-${row.id}`} onClick={() => onSuspend(row)} />
           )}
-          <ActionButton 
-            icon={Trash2} 
-            label="Delete" 
-            className="text-red-400 hover:text-red-300"
-            testId={`delete-supplier-${row.id}`}
-            onClick={() => onAction("delete-supplier", row)}
-          />
+          <ActionButton icon={Trash2} label="Delete" className="text-red-400 hover:text-red-300" testId={`delete-supplier-${row.id}`} onClick={() => onDelete(row)} />
         </ActionButtonGroup>
       )
     },
@@ -509,102 +863,77 @@ const SupplierManagement = ({ suppliers, onAction }) => {
 
   return (
     <div className="space-y-6" data-testid="supplier-management">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold font-['Barlow_Condensed'] uppercase tracking-wide mb-1">
-            Supplier Management
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Manage supplier registrations and accounts
-          </p>
+          <h1 className="text-2xl font-bold font-['Barlow_Condensed'] uppercase tracking-wide mb-1">Supplier Management</h1>
+          <p className="text-sm text-muted-foreground">Manage supplier registrations and accounts</p>
+        </div>
+        <div className="flex gap-2">
+          <Select value={docFilter} onValueChange={setDocFilter}>
+            <SelectTrigger className="w-[150px] bg-black/20" data-testid="doc-status-filter">
+              <SelectValue placeholder="Doc Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Docs</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="expiring">Expiring</SelectItem>
+              <SelectItem value="expired">Expired</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[150px] bg-black/20" data-testid="supplier-status-filter">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="suspended">Suspended</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
-      <DataTable
-        columns={columns}
-        data={suppliers}
-        searchPlaceholder="Search suppliers..."
-        searchKey="name"
-        pageSize={5}
-        testId="suppliers-table"
-      />
+      <DataTable columns={columns} data={filteredSuppliers} searchPlaceholder="Search suppliers..." searchKey="name" pageSize={5} testId="suppliers-table" />
     </div>
   );
 };
 
 // Product Management Section
-const ProductManagement = ({ products, onAction }) => {
+const ProductManagement = ({ products, onView, onApprove, onReject, onEdit, onDelete }) => {
+  const [statusFilter, setStatusFilter] = useState("all");
+  
+  const filteredProducts = statusFilter === "all" ? products : products.filter(p => p.status === statusFilter);
+
   const columns = [
     { 
-      key: "name", 
-      label: "Product Name",
+      key: "name", label: "Product Name",
       render: (value, row) => (
         <div className="flex items-center gap-3">
-          <img 
-            src={row.image} 
-            alt={value}
-            className="h-10 w-14 rounded-sm object-cover bg-muted"
-          />
+          <img src={row.image} alt={value} className="h-10 w-14 rounded-sm object-cover bg-muted" />
           <div>
             <p className="font-medium">{value}</p>
-            <p className="text-xs text-muted-foreground">{row.category}</p>
+            <p className="text-xs text-muted-foreground">{row.subcategory}</p>
           </div>
         </div>
       )
     },
     { key: "supplierName", label: "Supplier" },
     { key: "category", label: "Category" },
-    { 
-      key: "rating", 
-      label: "Rating",
-      render: (value) => <RatingStars rating={value} size="sm" />
-    },
-    { 
-      key: "status", 
-      label: "Status",
-      render: (value) => <StatusBadge status={value} />
-    },
+    { key: "rating", label: "Rating", render: (value) => <RatingStars rating={value} size="sm" /> },
+    { key: "status", label: "Status", render: (value) => <StatusBadge status={value} /> },
     {
-      key: "actions",
-      label: "Actions",
+      key: "actions", label: "Actions",
       render: (_, row) => (
         <ActionButtonGroup>
-          <ActionButton 
-            icon={Eye} 
-            label="View Product" 
-            testId={`view-product-${row.id}`}
-            onClick={() => toast.info(`Viewing ${row.name}`)}
-          />
+          <ActionButton icon={Eye} label="View" testId={`view-product-${row.id}`} onClick={() => onView(row)} />
           {row.status === "pending" && (
             <>
-              <ActionButton 
-                icon={Check} 
-                label="Approve" 
-                className="text-emerald-400 hover:text-emerald-300"
-                testId={`approve-product-${row.id}`}
-                onClick={() => onAction("approve-product", row)}
-              />
-              <ActionButton 
-                icon={X} 
-                label="Reject" 
-                className="text-red-400 hover:text-red-300"
-                testId={`reject-product-${row.id}`}
-                onClick={() => onAction("reject-product", row)}
-              />
+              <ActionButton icon={Check} label="Approve" className="text-emerald-400 hover:text-emerald-300" testId={`approve-product-${row.id}`} onClick={() => onApprove(row)} />
+              <ActionButton icon={X} label="Reject" className="text-red-400 hover:text-red-300" testId={`reject-product-${row.id}`} onClick={() => onReject(row)} />
             </>
           )}
-          <ActionButton 
-            icon={Edit} 
-            label="Edit" 
-            testId={`edit-product-${row.id}`}
-            onClick={() => toast.info(`Editing ${row.name}`)}
-          />
-          <ActionButton 
-            icon={Trash2} 
-            label="Delete" 
-            className="text-red-400 hover:text-red-300"
-            testId={`delete-product-${row.id}`}
-            onClick={() => onAction("delete-product", row)}
-          />
+          <ActionButton icon={Edit} label="Edit" testId={`edit-product-${row.id}`} onClick={() => onEdit(row)} />
+          <ActionButton icon={Trash2} label="Delete" className="text-red-400 hover:text-red-300" testId={`delete-product-${row.id}`} onClick={() => onDelete(row)} />
         </ActionButtonGroup>
       )
     },
@@ -614,79 +943,64 @@ const ProductManagement = ({ products, onAction }) => {
     <div className="space-y-6" data-testid="product-management">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold font-['Barlow_Condensed'] uppercase tracking-wide mb-1">
-            Product Management
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Manage product listings and approvals
-          </p>
+          <h1 className="text-2xl font-bold font-['Barlow_Condensed'] uppercase tracking-wide mb-1">Product Management</h1>
+          <p className="text-sm text-muted-foreground">Manage product listings and approvals</p>
         </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[150px] bg-black/20" data-testid="product-status-filter">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
-      <DataTable
-        columns={columns}
-        data={products}
-        searchPlaceholder="Search products..."
-        searchKey="name"
-        pageSize={5}
-        testId="products-table"
-      />
+      <DataTable columns={columns} data={filteredProducts} searchPlaceholder="Search products..." searchKey="name" pageSize={5} testId="products-table" />
     </div>
   );
 };
 
 // Ratings Moderation Section
-const RatingsModeration = ({ ratings, onAction }) => {
+const RatingsModeration = ({ ratings, onView, onApprove, onReject, onRemove, onApproveReply, onRejectReply }) => {
+  const [statusFilter, setStatusFilter] = useState("all");
+  
+  const filteredRatings = statusFilter === "all" ? ratings : ratings.filter(r => r.status === statusFilter);
+
   const columns = [
     { key: "productName", label: "Product" },
     { key: "buyerName", label: "Buyer" },
+    { key: "rating", label: "Rating", render: (value) => <RatingStars rating={value} size="sm" /> },
+    { key: "review", label: "Review", render: (value) => <p className="text-sm max-w-xs truncate">{value}</p> },
     { 
-      key: "rating", 
-      label: "Rating",
-      render: (value) => <RatingStars rating={value} size="sm" />
+      key: "supplierReply", label: "Reply",
+      render: (value, row) => value ? (
+        <div className="flex items-center gap-1">
+          <StatusBadge status={row.supplierReplyStatus || 'pending'} />
+        </div>
+      ) : <span className="text-xs text-muted-foreground">No reply</span>
     },
-    { 
-      key: "review", 
-      label: "Review",
-      render: (value) => (
-        <p className="text-sm max-w-xs truncate">{value}</p>
-      )
-    },
-    { key: "submissionDate", label: "Date" },
-    { 
-      key: "status", 
-      label: "Status",
-      render: (value) => <StatusBadge status={value} />
-    },
+    { key: "status", label: "Status", render: (value) => <StatusBadge status={value} /> },
     {
-      key: "actions",
-      label: "Actions",
+      key: "actions", label: "Actions",
       render: (_, row) => (
         <ActionButtonGroup>
+          <ActionButton icon={Eye} label="View" testId={`view-rating-${row.id}`} onClick={() => onView(row)} />
           {row.status === "pending" && (
             <>
-              <ActionButton 
-                icon={Check} 
-                label="Approve" 
-                className="text-emerald-400 hover:text-emerald-300"
-                testId={`approve-rating-${row.id}`}
-                onClick={() => onAction("approve-rating", row)}
-              />
-              <ActionButton 
-                icon={X} 
-                label="Reject" 
-                className="text-red-400 hover:text-red-300"
-                testId={`reject-rating-${row.id}`}
-                onClick={() => onAction("reject-rating", row)}
-              />
+              <ActionButton icon={Check} label="Approve" className="text-emerald-400 hover:text-emerald-300" testId={`approve-rating-${row.id}`} onClick={() => onApprove(row)} />
+              <ActionButton icon={X} label="Reject" className="text-red-400 hover:text-red-300" testId={`reject-rating-${row.id}`} onClick={() => onReject(row)} />
             </>
           )}
-          <ActionButton 
-            icon={Trash2} 
-            label="Remove" 
-            className="text-red-400 hover:text-red-300"
-            testId={`remove-rating-${row.id}`}
-            onClick={() => onAction("remove-rating", row)}
-          />
+          {row.supplierReply && row.supplierReplyStatus === 'pending' && (
+            <>
+              <ActionButton icon={Check} label="Approve Reply" className="text-blue-400 hover:text-blue-300" onClick={() => onApproveReply(row)} />
+              <ActionButton icon={X} label="Reject Reply" className="text-orange-400 hover:text-orange-300" onClick={() => onRejectReply(row)} />
+            </>
+          )}
+          <ActionButton icon={Trash2} label="Remove" className="text-red-400 hover:text-red-300" testId={`remove-rating-${row.id}`} onClick={() => onRemove(row)} />
         </ActionButtonGroup>
       )
     },
@@ -694,92 +1008,81 @@ const RatingsModeration = ({ ratings, onAction }) => {
 
   return (
     <div className="space-y-6" data-testid="ratings-moderation">
-      <div>
-        <h1 className="text-2xl font-bold font-['Barlow_Condensed'] uppercase tracking-wide mb-1">
-          Ratings Moderation
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Review and moderate user ratings
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold font-['Barlow_Condensed'] uppercase tracking-wide mb-1">Ratings Moderation</h1>
+          <p className="text-sm text-muted-foreground">Review and moderate user ratings and supplier replies</p>
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[150px] bg-black/20" data-testid="rating-status-filter">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
-      <DataTable
-        columns={columns}
-        data={ratings}
-        searchPlaceholder="Search ratings..."
-        searchKey="productName"
-        pageSize={5}
-        testId="ratings-table"
-      />
+      <DataTable columns={columns} data={filteredRatings} searchPlaceholder="Search ratings..." searchKey="productName" pageSize={5} testId="ratings-table" />
     </div>
   );
 };
 
-// Category Management Section
-const CategoryManagement = ({ categories, onAction, onAddCategory }) => {
+// Category Management Section with Subcategory Support
+const CategoryManagement = ({ categories, onEdit, onEditSubcategory, onDelete, onDeleteSubcategory, onAddCategory, onAddSubcategory }) => {
+  const [expandedCategories, setExpandedCategories] = useState({});
+
+  const toggleExpand = (catId) => {
+    setExpandedCategories(prev => ({ ...prev, [catId]: !prev[catId] }));
+  };
+
   return (
     <div className="space-y-6" data-testid="category-management">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold font-['Barlow_Condensed'] uppercase tracking-wide mb-1">
-            Category Management
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Manage product categories and subcategories
-          </p>
+          <h1 className="text-2xl font-bold font-['Barlow_Condensed'] uppercase tracking-wide mb-1">Category Management</h1>
+          <p className="text-sm text-muted-foreground">Manage product categories and subcategories</p>
         </div>
-        <Button 
-          onClick={onAddCategory}
-          className="gap-2"
-          data-testid="add-category-btn"
-        >
-          <Plus className="h-4 w-4" />
-          Add Category
+        <Button onClick={onAddCategory} className="gap-2" data-testid="add-category-btn">
+          <Plus className="h-4 w-4" />Add Category
         </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {categories.map((category) => (
-          <div 
-            key={category.id} 
-            className="dashboard-card group"
-            data-testid={`category-card-${category.id}`}
-          >
+          <div key={category.id} className="dashboard-card" data-testid={`category-card-${category.id}`}>
             <div className="dashboard-card-header">
-              <div className="flex items-center gap-2">
+              <button onClick={() => toggleExpand(category.id)} className="flex items-center gap-2 text-left">
+                {expandedCategories[category.id] ? <ChevronDown className="h-4 w-4 text-primary" /> : <ChevronRight className="h-4 w-4 text-primary" />}
                 <FolderTree className="h-4 w-4 text-primary" />
                 <h3 className="dashboard-card-title">{category.name}</h3>
-              </div>
+              </button>
               <ActionButtonGroup>
-                <ActionButton 
-                  icon={Edit} 
-                  label="Edit" 
-                  testId={`edit-category-${category.id}`}
-                  onClick={() => toast.info(`Editing ${category.name}`)}
-                />
-                <ActionButton 
-                  icon={Trash2} 
-                  label="Delete" 
-                  className="text-red-400 hover:text-red-300"
-                  testId={`delete-category-${category.id}`}
-                  onClick={() => onAction("delete-category", category)}
-                />
+                <ActionButton icon={Plus} label="Add Subcategory" testId={`add-subcategory-${category.id}`} onClick={() => onAddSubcategory(category)} />
+                <ActionButton icon={Edit} label="Edit" testId={`edit-category-${category.id}`} onClick={() => onEdit(category)} />
+                <ActionButton icon={Trash2} label="Delete" className="text-red-400 hover:text-red-300" testId={`delete-category-${category.id}`} onClick={() => onDelete(category)} />
               </ActionButtonGroup>
             </div>
             <div className="dashboard-card-content">
-              <p className="text-xs text-muted-foreground mb-3">
-                {category.productCount} products
-              </p>
-              <div className="space-y-1">
-                {category.subcategories.map((sub, idx) => (
-                  <div 
-                    key={idx}
-                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                  >
-                    <ChevronRight className="h-3 w-3" />
-                    {sub}
-                  </div>
-                ))}
-              </div>
+              <p className="text-xs text-muted-foreground mb-3">{category.productCount} products • {category.subcategories.length} subcategories</p>
+              {expandedCategories[category.id] && (
+                <div className="space-y-1 mt-3 pt-3 border-t border-border">
+                  {category.subcategories.map((sub) => (
+                    <div key={sub.id} className="flex items-center justify-between py-1.5 px-2 hover:bg-muted/30 rounded-sm group">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <ChevronRight className="h-3 w-3" />
+                        {sub.name}
+                      </div>
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                        <ActionButton icon={Edit} label="Edit" className="h-6 w-6" onClick={() => onEditSubcategory({ ...sub, categoryId: category.id })} />
+                        <ActionButton icon={Trash2} label="Delete" className="h-6 w-6 text-red-400" onClick={() => onDeleteSubcategory({ ...sub, categoryId: category.id })} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -789,11 +1092,14 @@ const CategoryManagement = ({ categories, onAction, onAddCategory }) => {
 };
 
 // Buyer Management Section
-const BuyerManagement = ({ buyers, onAction }) => {
+const BuyerManagement = ({ buyers, onView, onSuspend, onDelete }) => {
+  const [statusFilter, setStatusFilter] = useState("all");
+  
+  const filteredBuyers = statusFilter === "all" ? buyers : buyers.filter(b => b.status === statusFilter);
+
   const columns = [
     { 
-      key: "name", 
-      label: "Buyer Name",
+      key: "name", label: "Buyer Name",
       render: (value, row) => (
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-sm bg-primary/20 flex items-center justify-center">
@@ -809,38 +1115,16 @@ const BuyerManagement = ({ buyers, onAction }) => {
     { key: "company", label: "Company" },
     { key: "country", label: "Country" },
     { key: "enquiriesSent", label: "Enquiries" },
-    { 
-      key: "status", 
-      label: "Status",
-      render: (value) => <StatusBadge status={value} />
-    },
+    { key: "status", label: "Status", render: (value) => <StatusBadge status={value} /> },
     {
-      key: "actions",
-      label: "Actions",
+      key: "actions", label: "Actions",
       render: (_, row) => (
         <ActionButtonGroup>
-          <ActionButton 
-            icon={Eye} 
-            label="View Profile" 
-            testId={`view-buyer-${row.id}`}
-            onClick={() => toast.info(`Viewing ${row.name}'s profile`)}
-          />
+          <ActionButton icon={Eye} label="View Profile" testId={`view-buyer-${row.id}`} onClick={() => onView(row)} />
           {row.status === "active" && (
-            <ActionButton 
-              icon={Ban} 
-              label="Suspend" 
-              className="text-amber-400 hover:text-amber-300"
-              testId={`suspend-buyer-${row.id}`}
-              onClick={() => onAction("suspend-buyer", row)}
-            />
+            <ActionButton icon={Ban} label="Suspend" className="text-amber-400 hover:text-amber-300" testId={`suspend-buyer-${row.id}`} onClick={() => onSuspend(row)} />
           )}
-          <ActionButton 
-            icon={Trash2} 
-            label="Delete" 
-            className="text-red-400 hover:text-red-300"
-            testId={`delete-buyer-${row.id}`}
-            onClick={() => onAction("delete-buyer", row)}
-          />
+          <ActionButton icon={Trash2} label="Delete" className="text-red-400 hover:text-red-300" testId={`delete-buyer-${row.id}`} onClick={() => onDelete(row)} />
         </ActionButtonGroup>
       )
     },
@@ -848,22 +1132,23 @@ const BuyerManagement = ({ buyers, onAction }) => {
 
   return (
     <div className="space-y-6" data-testid="buyer-management">
-      <div>
-        <h1 className="text-2xl font-bold font-['Barlow_Condensed'] uppercase tracking-wide mb-1">
-          Buyer Management
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Manage buyer accounts and activities
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold font-['Barlow_Condensed'] uppercase tracking-wide mb-1">Buyer Management</h1>
+          <p className="text-sm text-muted-foreground">Manage buyer accounts and activities</p>
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[150px] bg-black/20" data-testid="buyer-status-filter">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="suspended">Suspended</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
-      <DataTable
-        columns={columns}
-        data={buyers}
-        searchPlaceholder="Search buyers..."
-        searchKey="name"
-        pageSize={5}
-        testId="buyers-table"
-      />
+      <DataTable columns={columns} data={filteredBuyers} searchPlaceholder="Search buyers..." searchKey="name" pageSize={5} testId="buyers-table" />
     </div>
   );
 };
@@ -873,20 +1158,12 @@ const PlatformInsights = ({ analyticsData }) => {
   return (
     <div className="space-y-6" data-testid="platform-insights">
       <div>
-        <h1 className="text-2xl font-bold font-['Barlow_Condensed'] uppercase tracking-wide mb-1">
-          Platform Insights
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Analytics and trends across the platform
-        </p>
+        <h1 className="text-2xl font-bold font-['Barlow_Condensed'] uppercase tracking-wide mb-1">Platform Insights</h1>
+        <p className="text-sm text-muted-foreground">Analytics and trends across the platform</p>
       </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Most Searched Components */}
         <div className="dashboard-card">
-          <div className="dashboard-card-header">
-            <h3 className="dashboard-card-title">Most Searched Components</h3>
-          </div>
+          <div className="dashboard-card-header"><h3 className="dashboard-card-title">Most Searched Components</h3></div>
           <div className="dashboard-card-content">
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={analyticsData.mostSearchedComponents}>
@@ -899,12 +1176,8 @@ const PlatformInsights = ({ analyticsData }) => {
             </ResponsiveContainer>
           </div>
         </div>
-
-        {/* Most Active Suppliers */}
         <div className="dashboard-card">
-          <div className="dashboard-card-header">
-            <h3 className="dashboard-card-title">Most Active Suppliers</h3>
-          </div>
+          <div className="dashboard-card-header"><h3 className="dashboard-card-title">Most Active Suppliers</h3></div>
           <div className="dashboard-card-content">
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={analyticsData.mostActiveSuppliers}>
@@ -918,33 +1191,8 @@ const PlatformInsights = ({ analyticsData }) => {
             </ResponsiveContainer>
           </div>
         </div>
-
-        {/* Category Demand Trends */}
         <div className="dashboard-card lg:col-span-2">
-          <div className="dashboard-card-header">
-            <h3 className="dashboard-card-title">Category Demand Trends</h3>
-          </div>
-          <div className="dashboard-card-content">
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={analyticsData.categoryDemandTrends}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis dataKey="month" stroke="#666" fontSize={11} />
-                <YAxis stroke="#666" fontSize={11} />
-                <Tooltip content={<CustomTooltip />} />
-                <Line type="monotone" dataKey="uav" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6' }} name="UAV & Aerospace" />
-                <Line type="monotone" dataKey="electronics" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981' }} name="Tactical Electronics" />
-                <Line type="monotone" dataKey="surveillance" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b' }} name="Surveillance" />
-                <Line type="monotone" dataKey="materials" stroke="#8b5cf6" strokeWidth={2} dot={{ fill: '#8b5cf6' }} name="Defense Materials" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Monthly Enquiries */}
-        <div className="dashboard-card lg:col-span-2">
-          <div className="dashboard-card-header">
-            <h3 className="dashboard-card-title">Monthly Enquiries Trend</h3>
-          </div>
+          <div className="dashboard-card-header"><h3 className="dashboard-card-title">Monthly Enquiries Trend</h3></div>
           <div className="dashboard-card-content">
             <ResponsiveContainer width="100%" height={250}>
               <AreaChart data={analyticsData.monthlyEnquiries}>
