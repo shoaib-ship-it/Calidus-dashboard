@@ -36,6 +36,7 @@ import {
   products as allProducts, enquiries as allEnquiries, ratings as allRatings,
   currentSupplier, supplierStats, categories, supplierNotifications,
 } from "@/data/mockData";
+import { productApi, supplierApi } from "@/lib/api";
 
 // Countries list for dropdown
 const countries = [
@@ -135,6 +136,37 @@ export const SupplierDashboard = () => {
   const [replyText, setReplyText] = useState("");
   const [reviewReplyText, setReviewReplyText] = useState("");
 
+  useEffect(() => {
+    const loadSupplier = async () => {
+      try {
+        const freshSupplier = await supplierApi.get(currentSupplier.id);
+        if (freshSupplier) {
+          setSupplier(freshSupplier);
+          setProfileForm(freshSupplier);
+        }
+      } catch (error) {
+        console.error("Failed to fetch supplier profile from backend:", error);
+      }
+    };
+
+    loadSupplier();
+  }, []);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const allApiProducts = await productApi.list();
+        if (Array.isArray(allApiProducts) && allApiProducts.length > 0) {
+          setProducts(allApiProducts.filter((p) => p.supplierId === currentSupplier.id));
+        }
+      } catch (error) {
+        console.error("Failed to fetch products from backend:", error);
+      }
+    };
+
+    loadProducts();
+  }, []);
+
   const stats = {
     profileViews: supplier.profileViews,
     totalEnquiries: enquiries.length,
@@ -168,11 +200,16 @@ export const SupplierDashboard = () => {
     setConfirmDialog({ open: true, type, item, message });
   };
 
-  const handleConfirmAction = () => {
+  const handleConfirmAction = async () => {
     const { type, item } = confirmDialog;
     if (type === "delete-product") {
-      setProducts(prev => prev.filter(p => p.id !== item.id));
-      toast.success(`Product "${item.name}" deleted`);
+      try {
+        await productApi.remove(item.id);
+        setProducts(prev => prev.filter(p => p.id !== item.id));
+        toast.success(`Product "${item.name}" deleted`);
+      } catch (error) {
+        toast.error(error.message || "Failed to delete product");
+      }
     }
     setConfirmDialog({ open: false, type: "", item: null, message: "" });
   };
@@ -302,7 +339,7 @@ export const SupplierDashboard = () => {
     }));
   };
 
-  const handleAddProduct = () => {
+  const handleAddProduct = async () => {
     if (!validateProductForm()) {
       toast.error("Please fill in all required fields");
       setActiveFormTab("basic");
@@ -338,15 +375,20 @@ export const SupplierDashboard = () => {
       image: productForm.images[productForm.primaryImageIndex]?.url || "https://images.unsplash.com/photo-1607867992871-34951585c280?w=200&h=150&fit=crop"
     };
     
-    setProducts(prev => [...prev, newProd]);
-    toast.success(`Product "${productForm.name}" added and submitted for approval`);
-    setProductForm(getEmptyProductForm());
-    setFormErrors({});
-    setActiveFormTab("basic");
-    setAddProductDialog(false);
+    try {
+      const created = await productApi.create(newProd);
+      setProducts(prev => [...prev, created]);
+      toast.success(`Product "${productForm.name}" added and submitted for approval`);
+      setProductForm(getEmptyProductForm());
+      setFormErrors({});
+      setActiveFormTab("basic");
+      setAddProductDialog(false);
+    } catch (error) {
+      toast.error(error.message || "Failed to add product");
+    }
   };
 
-  const handleEditProduct = () => {
+  const handleEditProduct = async () => {
     if (!validateProductForm()) {
       toast.error("Please fill in all required fields");
       setActiveFormTab("basic");
@@ -378,18 +420,36 @@ export const SupplierDashboard = () => {
       image: productForm.images[productForm.primaryImageIndex]?.url || editProductDialog.item.image
     };
 
-    setProducts(prev => prev.map(p => p.id === editProductDialog.item.id ? updatedProduct : p));
-    toast.success(`Product "${productForm.name}" updated and resubmitted for approval`);
-    setProductForm(getEmptyProductForm());
-    setFormErrors({});
-    setActiveFormTab("basic");
-    setEditProductDialog({ open: false, item: null });
+    try {
+      const updated = await productApi.update(editProductDialog.item.id, updatedProduct);
+      setProducts(prev => prev.map(p => p.id === editProductDialog.item.id ? updated : p));
+      toast.success(`Product "${productForm.name}" updated and resubmitted for approval`);
+      setProductForm(getEmptyProductForm());
+      setFormErrors({});
+      setActiveFormTab("basic");
+      setEditProductDialog({ open: false, item: null });
+    } catch (error) {
+      toast.error(error.message || "Failed to update product");
+    }
   };
 
-  const handleSaveProfile = () => {
-    setSupplier({ ...profileForm });
-    toast.success("Company profile updated successfully");
-    setEditProfileDialog(false);
+  const handleSaveProfile = async () => {
+    try {
+      const payload = {
+        name: profileForm.name,
+        type: profileForm.type,
+        country: profileForm.country,
+        email: profileForm.email,
+        phone: profileForm.phone,
+      };
+      const updated = await supplierApi.update(supplier.id, payload);
+      setSupplier(updated);
+      setProfileForm(updated);
+      toast.success("Company profile updated successfully");
+      setEditProfileDialog(false);
+    } catch (error) {
+      toast.error(error.message || "Failed to update company profile");
+    }
   };
 
   const handleUploadDocument = () => {

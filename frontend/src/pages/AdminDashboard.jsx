@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigation } from "@/App";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,7 @@ import {
   ratings as initialRatings, categories as initialCategories, analyticsData, enquiries,
   getDocumentExpiryStats,
 } from "@/data/mockData";
+import { productApi, supplierApi } from "@/lib/api";
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -94,6 +95,36 @@ export const AdminDashboard = () => {
   const [newSubcategory, setNewSubcategory] = useState("");
   const [editForm, setEditForm] = useState({});
 
+  useEffect(() => {
+    const loadSuppliers = async () => {
+      try {
+        const apiSuppliers = await supplierApi.list();
+        if (Array.isArray(apiSuppliers) && apiSuppliers.length > 0) {
+          setSuppliers(apiSuppliers);
+        }
+      } catch (error) {
+        console.error("Failed to load suppliers from backend:", error);
+      }
+    };
+
+    loadSuppliers();
+  }, []);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const apiProducts = await productApi.list();
+        if (Array.isArray(apiProducts) && apiProducts.length > 0) {
+          setProducts(apiProducts);
+        }
+      } catch (error) {
+        console.error("Failed to load products from backend:", error);
+      }
+    };
+
+    loadProducts();
+  }, []);
+
   const documentStats = getDocumentExpiryStats(suppliers);
   
   const stats = {
@@ -112,35 +143,43 @@ export const AdminDashboard = () => {
     setConfirmDialog({ open: true, type, item, message });
   };
 
-  const handleConfirmAction = () => {
+  const handleConfirmAction = async () => {
     const { type, item } = confirmDialog;
     
-    switch (type) {
-      case "approve-supplier":
-        setSuppliers(prev => prev.map(s => s.id === item.id ? { ...s, status: "active" } : s));
-        toast.success(`Supplier "${item.name}" approved successfully`);
-        break;
-      case "reject-supplier":
-        setSuppliers(prev => prev.map(s => s.id === item.id ? { ...s, status: "rejected" } : s));
-        toast.error(`Supplier "${item.name}" rejected`);
-        break;
-      case "suspend-supplier":
-        setSuppliers(prev => prev.map(s => s.id === item.id ? { ...s, status: "suspended" } : s));
-        toast.warning(`Supplier "${item.name}" suspended`);
-        break;
-      case "delete-supplier":
-        setSuppliers(prev => prev.filter(s => s.id !== item.id));
-        toast.success(`Supplier "${item.name}" deleted`);
-        break;
-      case "approve-product":
+    try {
+      switch (type) {
+        case "approve-supplier":
+          await supplierApi.updateStatus(item.id, "active");
+          setSuppliers(prev => prev.map(s => s.id === item.id ? { ...s, status: "active" } : s));
+          toast.success(`Supplier "${item.name}" approved successfully`);
+          break;
+        case "reject-supplier":
+          await supplierApi.updateStatus(item.id, "rejected");
+          setSuppliers(prev => prev.map(s => s.id === item.id ? { ...s, status: "rejected" } : s));
+          toast.error(`Supplier "${item.name}" rejected`);
+          break;
+        case "suspend-supplier":
+          await supplierApi.updateStatus(item.id, "suspended");
+          setSuppliers(prev => prev.map(s => s.id === item.id ? { ...s, status: "suspended" } : s));
+          toast.warning(`Supplier "${item.name}" suspended`);
+          break;
+        case "delete-supplier":
+          await supplierApi.remove(item.id);
+          setSuppliers(prev => prev.filter(s => s.id !== item.id));
+          toast.success(`Supplier "${item.name}" deleted`);
+          break;
+        case "approve-product":
+        await productApi.updateStatus(item.id, "approved");
         setProducts(prev => prev.map(p => p.id === item.id ? { ...p, status: "approved" } : p));
         toast.success(`Product "${item.name}" approved`);
         break;
-      case "reject-product":
+        case "reject-product":
+        await productApi.updateStatus(item.id, "rejected");
         setProducts(prev => prev.map(p => p.id === item.id ? { ...p, status: "rejected" } : p));
         toast.error(`Product "${item.name}" rejected`);
         break;
-      case "delete-product":
+        case "delete-product":
+        await productApi.remove(item.id);
         setProducts(prev => prev.filter(p => p.id !== item.id));
         toast.success(`Product "${item.name}" deleted`);
         break;
@@ -186,6 +225,9 @@ export const AdminDashboard = () => {
         break;
       default:
         break;
+      }
+    } catch (error) {
+      toast.error(error.message || "Supplier operation failed");
     }
     
     setConfirmDialog({ open: false, type: "", item: null, message: "" });
@@ -215,13 +257,19 @@ export const AdminDashboard = () => {
     setEditDialog({ open: true, type, item });
   };
 
-  const handleEditSave = () => {
+  const handleEditSave = async () => {
     const { type } = editDialog;
     
     switch (type) {
       case "product":
-        setProducts(prev => prev.map(p => p.id === editForm.id ? { ...editForm } : p));
-        toast.success(`Product "${editForm.name}" updated`);
+        try {
+          const updatedProduct = await productApi.update(editForm.id, editForm);
+          setProducts(prev => prev.map(p => p.id === editForm.id ? { ...updatedProduct } : p));
+          toast.success(`Product "${editForm.name}" updated`);
+        } catch (error) {
+          toast.error(error.message || "Failed to update product");
+          return;
+        }
         break;
       case "category":
         setCategoriesData(prev => prev.map(c => c.id === editForm.id ? { ...editForm } : c));
