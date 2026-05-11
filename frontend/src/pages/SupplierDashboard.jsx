@@ -1396,7 +1396,8 @@ export const SupplierDashboard = () => {
           </DialogHeader>
           <ScrollArea className="flex-1 pr-4">
             <div className="py-4">
-              <ProductFormContent isEdit={false} />
+              {/* <ProductFormContent isEdit={false} /> */}
+              {ProductFormContent({ isEdit: false })}
             </div>
           </ScrollArea>
           <DialogFooter className="border-t pt-4">
@@ -1423,7 +1424,8 @@ export const SupplierDashboard = () => {
           </DialogHeader>
           <ScrollArea className="flex-1 pr-4">
             <div className="py-4">
-              <ProductFormContent isEdit={true} />
+              {/* <ProductFormContent isEdit={true} /> */}
+              {ProductFormContent({ isEdit: true })}
             </div>
           </ScrollArea>
           <DialogFooter className="border-t pt-4">
